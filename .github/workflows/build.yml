@@ -36,8 +36,6 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: build-${{ github.run_number }}
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-          SIGNING_ALIAS: ${{ secrets.SIGNING_ALIAS }}
         run: gradle assembleDebug --no-daemon
       - name: Publish APK
         env:
