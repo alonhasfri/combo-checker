@@ -1,6 +1,11 @@
 name: Build Windows
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/remember-this-y6p3tq]
+    paths:
+      - 'combo-desktop/**'
+      - '.github/workflows/build-windows.yml'
 permissions:
   contents: write
 jobs:
