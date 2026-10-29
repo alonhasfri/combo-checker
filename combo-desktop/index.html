@@ -1,0 +1,794 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; -webkit-user-select: none; user-select: none; }
+  #shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; filter: brightness(0.55); }
+  canvas { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; touch-action: none; }
+  #bar {
+    position: absolute; top: 48px; left: 8px; right: 8px; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    background: rgba(20,20,30,.92); color: #fff; padding: 10px 12px; border-radius: 14px;
+  }
+  #bar select, #bar input { font-size: 16px; padding: 8px; border-radius: 8px; border: 0; }
+  #bar input[type=text], #bar input:not([type]) { flex: 1; min-width: 150px; }
+  #stats { width: 100%; font-size: 14px; color: #ffd23f; font-weight: bold; }
+  #hint { font-size: 13px; opacity: .85; width: 100%; }
+  #cancel { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 0; background: #444; color: #fff; }
+  #addpage { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 0; background: #2a7d46; color: #fff; }
+  #banner {
+    position: absolute; left: 0; right: 0; top: 36%; text-align: center; z-index: 6;
+    color: #fff; font-weight: 900; text-shadow: 0 0 20px #ff2ea6, 0 4px 0 #8a1160;
+    pointer-events: none; opacity: 0; transform: scale(.5);
+  }
+  #banner.pop { animation: pop .55s ease-out forwards; }
+  @keyframes pop { 0% { opacity: 0; transform: scale(.4); } 40% { opacity: 1; transform: scale(1.25); } 100% { opacity: 1; transform: scale(1); } }
+  #msg {
+    position: absolute; left: 0; right: 0; bottom: 10%; text-align: center; color: #fff; z-index: 6;
+    font-size: 18px; text-shadow: 0 2px 6px #000; padding: 0 8%; pointer-events: none;
+  }
+  #retry {
+    position: absolute; left: 50%; bottom: 20%; transform: translateX(-50%); z-index: 7; display: none;
+    font-size: 16px; padding: 12px 18px; border-radius: 10px; border: 0; background: #ff4fb8; color: #fff; font-weight: bold;
+  }
+  .shake { animation: shake .5s linear 3; }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0); } 20% { transform: translate(-14px,8px); }
+    40% { transform: translate(12px,-10px); } 60% { transform: translate(-10px,-6px); } 80% { transform: translate(10px,10px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <b id="setupTitle">&#11088; Combo Checker &mdash; Desktop <span style="font-weight:normal;opacity:.6;font-size:12px">(click to show/hide settings)</span></b>
+  <div class="detail">
+    <div class="row">
+      <input id="setupKey" type="password" placeholder="API key: free OpenRouter sk-or-..., Google AIza, or Anthropic sk-ant">
+      <input id="setupModel" placeholder="Model (optional)">
+      <label>Daily goal <input id="setupGoal" type="number" min="1" max="50" value="3"></label>
+      <label><input id="setupStrict" type="checkbox"> Strict AI detector</label>
+      <button id="setupSave">Save settings</button>
+      <button id="loadBtn">Load screenshot</button>
+      <span id="setupHint">Save your key, then load a screenshot of a finished task (or drag &amp; drop / paste one). No key = fun test mode.</span>
+    </div>
+  </div>
+  <input id="fileInput" type="file" accept="image/*">
+  <input id="pagePicker" type="file" accept="image/*">
+</div>
+
+<style>
+  #setup { position: absolute; top: 0; left: 0; right: 0; z-index: 20; background: #0d0d16; color: #fff;
+           font-family: sans-serif; font-size: 13px; padding: 8px 10px; box-sizing: border-box; }
+  #setup #setupTitle { cursor: pointer; display: block; }
+  #setup.mini .detail { display: none; }
+  #setup .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+  #setup input[type=password], #setup input:not([type]) { flex: 1; min-width: 180px; padding: 6px; border-radius: 6px; border: 0; }
+  #setup input#setupModel { flex: 0 0 150px; min-width: 120px; }
+  #setup input[type=number] { width: 48px; padding: 4px; border-radius: 6px; border: 0; }
+  #setup button { padding: 6px 10px; border: 0; border-radius: 6px; color: #fff; cursor: pointer; }
+  #setupSave { background: #3a66d6; }
+  #loadBtn { background: #2a7d46; }
+  #fileInput, #pagePicker { display: none; }
+  #setupHint { opacity: .8; }
+</style>
+<script>
+(function () {
+  function getLS(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+  function setLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  var extraPageB64s = [];
+
+  function buildPrompt(task, profile) {
+    var bonuses = profile.bonuses || [];
+    var lines = bonuses.map(function (b) { return '- ' + b.name + ': ' + b.rule; }).join('\n');
+    var desc = (profile.desc || '').trim();
+    var descLine = desc ? ('\nWhat the task is: "' + desc + '"') : '';
+    var hint = !!profile.hint;
+    var hintInstr = hint ? '\n4. For each bonus that is NOT earned, give one short, specific tip on how to earn it next time.' : '';
+    var tipsField = hint ? ', "tips": ["short tip", "..."]' : '';
+    return 'You are a strict but fair task checker. The images are screenshots the user gave as proof (the first is the circled crop; any others are extra pages of the same work).\n'
+      + 'Task the user says they finished: "' + (task || '(not specified)') + '"' + descLine + '\n\n'
+      + '1. Decide whether the image shows convincing evidence the task is done.\n'
+      + '2. Judge each bonus using only what is visible. Earn a bonus only if its rule is clearly met. If done is false, earn none.\n\n'
+      + 'Bonuses:\n' + lines + '\n'
+      + '3. Also estimate how likely the shown work was generated by AI, or faked or edited. Use 0 for clearly genuine, 100 for clearly AI-made or fake. Keep the reason short.' + hintInstr + '\n\n'
+      + 'Reply with ONLY this JSON, no other text:\n'
+      + '{"done": true or false, "bonuses": [{"name": "...", "earned": true or false}], "comment": "one short sentence explaining the verdict", "ai_suspect": {"score": 0 to 100, "reason": "short reason"}' + tipsField + '}';
+  }
+  function cropB64(image, fx, fy, fw, fh) {
+    var nw = image.naturalWidth, nh = image.naturalHeight;
+    var x = Math.max(0, Math.round(fx * nw)), y = Math.max(0, Math.round(fy * nh));
+    var w = Math.max(1, Math.round(fw * nw)), h = Math.max(1, Math.round(fh * nh));
+    w = Math.min(w, nw - x); h = Math.min(h, nh - y);
+    var scale = Math.min(1, 1568 / Math.max(w, h));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    c.getContext('2d').drawImage(image, x, y, w, h, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+  }
+  function scaleB64(image) {
+    var nw = image.naturalWidth, nh = image.naturalHeight;
+    var scale = Math.min(1, 1568 / Math.max(nw, nh));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(nw * scale)); c.height = Math.max(1, Math.round(nh * scale));
+    c.getContext('2d').drawImage(image, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+  }
+  function mockResult(profile) {
+    var arr = (profile.bonuses || []).map(function (b) { return { name: b.name, earned: Math.random() > 0.3 }; });
+    return { done: true, bonuses: arr, comment: 'Test mode: add an API key for real checks.', ai_suspect: { score: 0, reason: '' } };
+  }
+  async function webCheck(task, profileJson, fx, fy, fw, fh) {
+    try {
+      var profile = JSON.parse(profileJson);
+      var key = (getLS('key', '') || '').trim();
+      var img = document.getElementById('shot');
+      if (!img || !img.naturalWidth) { window.onResult(JSON.stringify({ error: 'Load a screenshot first' })); return; }
+      var images = [cropB64(img, fx, fy, fw, fh)].concat(extraPageB64s);
+      if (!key) { window.onResult(JSON.stringify(mockResult(profile))); return; }
+      var prompt = buildPrompt(task, profile);
+      var url, headers, body, parse;
+      if (key.indexOf('sk-or-') === 0) {
+        var model = (getLS('gmodel', '') || '').trim() || 'nvidia/nemotron-3.5-super-vl:free';
+        url = 'https://openrouter.ai/api/v1/chat/completions';
+        headers = { 'content-type': 'application/json', 'authorization': 'Bearer ' + key };
+        body = { model: model, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }].concat(images.map(function (b) { return { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b } }; })) }] };
+        parse = function (d) { return (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || ''; };
+      } else if (key.indexOf('sk-ant') === 0) {
+        url = 'https://api.anthropic.com/v1/messages';
+        headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+        body = { model: 'claude-sonnet-5-5', max_tokens: 600, messages: [{ role: 'user', content: images.map(function (b) { return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b } }; }).concat([{ type: 'text', text: prompt }]) }] };
+        parse = function (d) { return (d.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join(''); };
+      } else {
+        var gmodel = (getLS('gmodel', '') || '').trim() || 'gemini-flash-latest';
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/' + gmodel + ':generateContent';
+        headers = { 'content-type': 'application/json', 'x-goog-api-key': key };
+        body = { contents: [{ parts: images.map(function (b) { return { inline_data: { mime_type: 'image/jpeg', data: b } }; }).concat([{ text: prompt }]) }], generationConfig: { responseMimeType: 'application/json' } };
+        parse = function (d) { return ((d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts) || []).map(function (p) { return p.text || ''; }).join(''); };
+      }
+      var resp = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body) });
+      var data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) { window.onResult(JSON.stringify({ error: 'API ' + resp.status + ': ' + JSON.stringify(data).slice(0, 200) })); return; }
+      var reply = parse(data) || '';
+      var s = reply.indexOf('{'), e = reply.lastIndexOf('}');
+      if (s === -1 || e === -1) { window.onResult(JSON.stringify({ error: 'No JSON in model reply' })); return; }
+      window.onResult(reply.substring(s, e + 1));
+    } catch (err) { window.onResult(JSON.stringify({ error: String((err && err.message) || err) })); }
+  }
+  window.Android = {
+    getState: function () { return getLS('state', ''); },
+    setState: function (s) { setLS('state', s); },
+    getGoal: function () { return parseInt(getLS('goal', '3'), 10) || 3; },
+    getStrict: function () { return getLS('strict', '0') === '1'; },
+    getApproval: function () { return false; },
+    addPending: function () {},
+    saveWin: function () {},
+    vibrate: function (ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} },
+    speak: function (text, pitch, rate) { try { var u = new SpeechSynthesisUtterance(text); u.pitch = Math.min(2, Math.max(0, pitch)); u.rate = Math.min(2, Math.max(0.1, rate)); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {} },
+    hasVoice: function () { return false; },
+    playVoice: function () {},
+    close: function () { resetForNext(); },
+    pickPage: function () { document.getElementById('pagePicker').click(); },
+    check: function (task, profileJson, fx, fy, fw, fh) { webCheck(task, profileJson, fx, fy, fw, fh); }
+  };
+  function resetForNext() {
+    try {
+      extraPageB64s = [];
+      var b = document.getElementById('addpage'); if (b) b.textContent = 'Add page';
+      document.getElementById('msg').textContent = '';
+      document.getElementById('banner').textContent = '';
+      document.getElementById('draw').getContext('2d').clearRect(0, 0, 99999, 99999);
+      window.busy = false; window.finished = false;
+      document.getElementById('bar').style.display = '';
+      if (typeof renderStats === 'function') renderStats();
+    } catch (e) {}
+  }
+  function loadImageFile(file) {
+    if (!file) return;
+    var r = new FileReader();
+    r.onload = function () { if (typeof setImage === 'function') setImage(r.result); resetForNext(); document.getElementById('setup').classList.add('mini'); document.getElementById('setupHint').textContent = 'Circle the proof, then release to check.'; };
+    r.readAsDataURL(file);
+  }
+  function addPageFile(file) {
+    if (!file) return;
+    var r = new FileReader();
+    r.onload = function () { var im = new Image(); im.onload = function () { extraPageB64s.push(scaleB64(im)); if (typeof window.onPageAdded === 'function') window.onPageAdded(extraPageB64s.length); }; im.src = r.result; };
+    r.readAsDataURL(file);
+  }
+  window.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('setupKey').value = getLS('key', '');
+    document.getElementById('setupModel').value = getLS('gmodel', '');
+    document.getElementById('setupGoal').value = getLS('goal', '3');
+    document.getElementById('setupStrict').checked = getLS('strict', '0') === '1';
+    document.getElementById('setupTitle').addEventListener('click', function () { document.getElementById('setup').classList.toggle('mini'); });
+    document.getElementById('setupSave').addEventListener('click', function () {
+      setLS('key', document.getElementById('setupKey').value.trim());
+      setLS('gmodel', document.getElementById('setupModel').value.trim());
+      setLS('goal', String(parseInt(document.getElementById('setupGoal').value, 10) || 3));
+      setLS('strict', document.getElementById('setupStrict').checked ? '1' : '0');
+      document.getElementById('setupHint').textContent = 'Saved. Now load a screenshot.';
+    });
+    document.getElementById('loadBtn').addEventListener('click', function () { document.getElementById('fileInput').click(); });
+    document.getElementById('fileInput').addEventListener('change', function (e) { loadImageFile(e.target.files[0]); });
+    document.getElementById('pagePicker').addEventListener('change', function (e) { addPageFile(e.target.files[0]); });
+    window.addEventListener('dragover', function (e) { e.preventDefault(); });
+    window.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files[0]) loadImageFile(e.dataTransfer.files[0]); });
+    window.addEventListener('paste', function (e) { var items = (e.clipboardData && e.clipboardData.items) || []; for (var i = 0; i < items.length; i++) { if (items[i].type.indexOf('image') === 0) { loadImageFile(items[i].getAsFile()); break; } } });
+  });
+})();
+</script>
+
+<img id="shot" alt="">
+<canvas id="draw"></canvas>
+<canvas id="fx" style="pointer-events:none"></canvas>
+<div id="bar">
+  <div id="stats"></div>
+  <select id="profile"></select>
+  <input id="task" placeholder="What task did you finish?">
+  <input id="customdesc" placeholder="Describe your custom task" style="display:none">
+  <label style="font-size:14px"><input type="checkbox" id="voice"> Voice</label>
+  <button id="cancel">Cancel</button>
+  <button id="addpage">Add page</button>
+  <span id="hint">Draw a circle around the proof</span>
+</div>
+<div id="banner"></div>
+<div id="msg"></div>
+<button id="retry">Draw again</button>
+
+<script>
+const PROFILES = [
+  { name: 'Essay', bonuses: [
+    { name: 'Grammar', rule: 'No visible grammar mistakes in the shown text.' },
+    { name: 'Spelling', rule: 'No visible spelling mistakes.' },
+    { name: 'Interesting', rule: 'The topic or angle is original or thought-provoking, not generic.' },
+    { name: 'Complex', rule: 'Uses layered arguments, varied vocabulary or sophisticated structure.' },
+    { name: 'Long', rule: 'The visible text is clearly substantial (roughly 500+ words, or many full paragraphs).' } ] },
+  { name: 'Video edit', bonuses: [
+    { name: 'Clean cuts', rule: 'The timeline shows tidy cuts with no obvious gaps or overlaps.' },
+    { name: 'Audio', rule: 'Audio tracks are present and levels look balanced.' },
+    { name: 'Pacing', rule: 'Clips look varied and well paced, not one long static shot.' },
+    { name: 'Long', rule: 'The timeline is long or has many layers/clips.' } ] },
+  { name: 'Organizing', bonuses: [
+    { name: 'Tidy', rule: 'Items look neatly arranged with no clutter.' },
+    { name: 'Labeled', rule: 'Folders, files or containers have clear names or labels.' },
+    { name: 'Everything in place', rule: 'Nothing looks stray or left out of its group.' },
+    { name: 'Big cleanup', rule: 'A large amount of stuff was organized.' } ] },
+  { name: 'Homework', bonuses: [
+    { name: 'Complete', rule: 'All questions or parts shown are answered.' },
+    { name: 'Correct', rule: 'The answers that can be checked look correct.' },
+    { name: 'Neat', rule: 'Presentation is clean and readable.' },
+    { name: 'Showed work', rule: 'Steps or reasoning are shown, not just final answers.' } ] },
+  { name: 'Custom', bonuses: [
+    { name: 'Complete', rule: 'The task as described looks fully finished.' },
+    { name: 'Quality', rule: 'The result looks high quality.' },
+    { name: 'Neat', rule: 'The result looks clean and well presented.' },
+    { name: 'Big effort', rule: 'The task looks large or hard.' } ] }
+];
+
+const draw = document.getElementById('draw');
+const fx = document.getElementById('fx');
+const bar = document.getElementById('bar');
+const banner = document.getElementById('banner');
+const msg = document.getElementById('msg');
+const profileSel = document.getElementById('profile');
+const taskInput = document.getElementById('task');
+const statsEl = document.getElementById('stats');
+
+let points = [], drawing = false, busy = false, finished = false;
+let resolveResult = null;
+
+function sizeCanvases() {
+  for (const c of [draw, fx]) {
+    const r = c.getBoundingClientRect();
+    const w = Math.round(r.width) || window.innerWidth || document.documentElement.clientWidth || 360;
+    const h = Math.round(r.height) || window.innerHeight || document.documentElement.clientHeight || 640;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  }
+}
+sizeCanvases();
+window.addEventListener('resize', sizeCanvases);
+
+// ---------- points, combo multiplier, daily goal, levels ----------
+const COMBO_WINDOW = 30 * 60 * 1000; // finish tasks within 30 minutes of each other to build the combo
+const RANKS = ['Rookie', 'Apprentice', 'Doer', 'Achiever', 'Pro', 'Expert', 'Master', 'Champion', 'Legend', 'Mythic'];
+let state = { total: 0, streak: 0, lastTs: 0, day: '', dayCount: 0, goalGiven: false,
+  coins: 0, owned: [], star: 'star_default', circle: 'circle_default',
+  confetti: 'confetti_default', banner: 'banner_default', dp: 0, dpActive: false,
+  cd: 0, cdActive: false, retry: 0, hint: 0, hintActive: false, debug: false,
+  wins: 0, bestStreak: 0, achv: [], quests: { day: '', done: [false, false, false] } };
+try {
+  const saved = Android.getState();
+  if (saved) state = Object.assign(state, JSON.parse(saved));
+} catch (e) {}
+
+// ---------- skins bought in the Shop (ids live in the saved state) ----------
+const CIRCLE_COLORS = {
+  circle_default: '#ff4fb8', circle_cyan: '#3ee6ff', circle_green: '#7dff6b',
+  circle_red: '#ff5a5a', circle_gold: '#ffd23f', circle_purple: '#b06bff'
+};
+const CONFETTI_THEMES = {
+  confetti_default: ['#ff4fb8', '#ffd23f', '#3ee6ff', '#7dff6b', '#ffffff', '#ff7a3d'],
+  confetti_fire: ['#ff3d00', '#ff7a3d', '#ffd23f', '#ff5a5a', '#ffffff'],
+  confetti_ice: ['#3ee6ff', '#8ad8ff', '#ffffff', '#b0e0ff', '#5a9cff'],
+  confetti_gold: ['#ffd23f', '#ffb800', '#fff1a8', '#ffffff', '#e8a200'],
+  confetti_neon: ['#ff2ea6', '#7dff6b', '#3ee6ff', '#b06bff', '#ffffff']
+};
+const BANNER_STYLES = {
+  banner_default: { color: '#ffffff', shadow: '0 0 18px #ff2ea6, 0 3px 0 #000, 0 0 5px #000' },
+  banner_gold:    { color: '#ffd23f', shadow: '0 0 18px #ffb800, 0 3px 0 #000, 0 0 5px #000' },
+  banner_cyan:    { color: '#3ee6ff', shadow: '0 0 18px #0a9cc0, 0 3px 0 #000, 0 0 5px #000' },
+  banner_fire:    { color: '#ff7a3d', shadow: '0 0 18px #ff3d00, 0 3px 0 #000, 0 0 5px #000' },
+  banner_rainbow: { gradient: 'linear-gradient(90deg,#ff4fb8,#ffd23f,#7dff6b,#3ee6ff,#b06bff)' }
+};
+
+const levelOf = (pts) => Math.floor(Math.sqrt(pts / 25)) + 1;
+const rankOf = (lv) => RANKS[Math.min(lv, RANKS.length) - 1];
+const multiplierFor = (streak) => Math.min(3, 1 + 0.5 * (streak - 1));
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+function rollDay() {
+  const t = todayKey();
+  if (state.day !== t) { state.day = t; state.dayCount = 0; state.goalGiven = false; }
+}
+function renderStats() {
+  rollDay();
+  const lv = levelOf(state.total);
+  const alive = state.streak > 0 && (Date.now() - state.lastTs) <= COMBO_WINDOW;
+  const nextMult = alive ? multiplierFor(state.streak + 1) : 1;
+  let goal = 3;
+  try { goal = Android.getGoal(); } catch (e) {}
+  statsEl.textContent = 'Lv ' + lv + ' ' + rankOf(lv) + '  |  ' + state.total + ' pts  |  Today ' +
+    state.dayCount + '/' + goal + '  |  next x' + nextMult + '  |  ' + (state.coins || 0) + ' coins';
+}
+const ACHIEVEMENTS = [
+  { id: 'first_win', name: 'First Win', has: s => (s.wins || 0) >= 1 },
+  { id: 'wins10', name: '10 Tasks Done', has: s => (s.wins || 0) >= 10 },
+  { id: 'wins50', name: '50 Tasks Done', has: s => (s.wins || 0) >= 50 },
+  { id: 'combo3', name: 'Combo x3', has: s => (s.bestStreak || 0) >= 3 },
+  { id: 'combo5', name: 'Combo x5', has: s => (s.bestStreak || 0) >= 5 },
+  { id: 'level5', name: 'Level 5', has: s => levelOf(s.total) >= 5 },
+  { id: 'level10', name: 'Level 10', has: s => levelOf(s.total) >= 10 },
+  { id: 'collector', name: 'Collector (3 skins)', has: s => (s.owned || []).length >= 3 }
+];
+const QUESTS = [
+  { text: 'Finish 3 tasks today', reward: 50 },
+  { text: 'Land a combo (x1.5 or more)', reward: 30 },
+  { text: 'Earn 2 bonuses in one check', reward: 40 }
+];
+function checkAchievements() {
+  state.achv = state.achv || [];
+  const got = [];
+  for (const a of ACHIEVEMENTS) {
+    if (!state.achv.includes(a.id) && a.has(state)) { state.achv.push(a.id); got.push(a.name); }
+  }
+  return got;
+}
+function updateQuests(earnedCount, mult) {
+  const today = todayKey();
+  if (!state.quests || state.quests.day !== today) state.quests = { day: today, done: [false, false, false] };
+  const done = state.quests.done;
+  const conds = [state.dayCount >= 3, mult > 1, earnedCount >= 2];
+  const completed = [];
+  for (let i = 0; i < QUESTS.length; i++) {
+    if (!done[i] && conds[i]) { done[i] = true; state.coins = (state.coins || 0) + QUESTS[i].reward; completed.push(QUESTS[i]); }
+  }
+  return completed;
+}
+function awardPoints(earnedCount) {
+  rollDay();
+  const now = Date.now();
+  state.streak = (state.lastTs && (now - state.lastTs) <= COMBO_WINDOW) ? state.streak + 1 : 1;
+  state.lastTs = now;
+  state.wins = (state.wins || 0) + 1;
+  state.bestStreak = Math.max(state.bestStreak || 0, state.streak);
+  const mult = multiplierFor(state.streak);
+  let pts = Math.round((10 + 5 * earnedCount) * mult);
+  let doubled = false;
+  if (state.dpActive) { pts *= 2; doubled = true; state.dpActive = false; }
+  const oldLv = levelOf(state.total);
+  state.dayCount += 1;
+  let goal = 3;
+  try { goal = Android.getGoal(); } catch (e) {}
+  let goalHit = false;
+  if (!state.goalGiven && state.dayCount >= goal) { state.goalGiven = true; goalHit = true; pts += 50; }
+  state.total += pts;
+  let coinsEarned = pts;
+  let coinDoubled = false;
+  if (state.cdActive) { coinsEarned *= 2; coinDoubled = true; state.cdActive = false; }
+  let heldForApproval = false;
+  let approval = false;
+  try { approval = Android.getApproval(); } catch (e) {}
+  if (approval) {
+    heldForApproval = true;
+    try { Android.addPending(coinsEarned, taskInput.value); } catch (e) {}
+  } else {
+    state.coins = (state.coins || 0) + coinsEarned;
+  }
+  const newLv = levelOf(state.total);
+  try { Android.setState(JSON.stringify(state)); } catch (e) {}
+  return { pts, mult, goalHit, leveledUp: newLv > oldLv, newLv, doubled, coinsEarned, coinDoubled, heldForApproval };
+}
+
+PROFILES.forEach((p, i) => {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = p.name;
+  profileSel.appendChild(o);
+});
+try {
+  taskInput.value = localStorage.getItem('task') || '';
+  profileSel.value = localStorage.getItem('profile') || '0';
+  const v = localStorage.getItem('voice');
+  document.getElementById('voice').checked =
+    v === null ? (Android.hasVoice('bonus') || Android.hasVoice('finale')) : v === '1';
+} catch (e) {}
+renderStats();
+
+const customDescEl = document.getElementById('customdesc');
+try { customDescEl.value = localStorage.getItem('customdesc') || ''; } catch (e) {}
+function updateCustomVisibility() {
+  const p = PROFILES[Number(profileSel.value)];
+  customDescEl.style.display = (p && p.name === 'Custom') ? '' : 'none';
+}
+updateCustomVisibility();
+profileSel.addEventListener('change', () => {
+  try { localStorage.setItem('profile', profileSel.value); } catch (e) {}
+  updateCustomVisibility();
+});
+document.getElementById('addpage').addEventListener('click', () => { try { Android.pickPage(); } catch (e) {} });
+window.onPageAdded = function (n) {
+  const b = document.getElementById('addpage');
+  b.textContent = n > 0 ? ('+' + n + ' page' + (n > 1 ? 's' : '')) : 'Add page';
+};
+
+function setImage(src) { document.getElementById('shot').src = src; }
+function onResult(str) { if (resolveResult) resolveResult(JSON.parse(str)); }
+
+document.getElementById('cancel').addEventListener('click', () => Android.close());
+
+// ---------- circling (touch or mouse) ----------
+draw.addEventListener('pointerdown', (e) => {
+  if (busy) return;
+  if (finished) { Android.close(); return; }
+  sizeCanvases();
+  draw.setPointerCapture(e.pointerId);
+  drawing = true;
+  points = [[e.clientX, e.clientY]];
+  bar.style.opacity = '0.25';
+});
+draw.addEventListener('pointermove', (e) => {
+  if (!drawing) return;
+  points.push([e.clientX, e.clientY]);
+  const ctx = draw.getContext('2d');
+  ctx.clearRect(0, 0, draw.width, draw.height);
+  ctx.lineWidth = 6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const circleColor = CIRCLE_COLORS[state.circle] || '#ff4fb8';
+  ctx.strokeStyle = circleColor;
+  ctx.shadowColor = circleColor; ctx.shadowBlur = 16;
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.stroke();
+});
+async function endDraw() {
+  if (!drawing) return;
+  drawing = false;
+  bar.style.opacity = '1';
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  const x1 = Math.max(...xs), y1 = Math.max(...ys);
+  if (x1 - x0 < 40 || y1 - y0 < 40) {
+    points = [];
+    draw.getContext('2d').clearRect(0, 0, draw.width, draw.height);
+    return;
+  }
+  await runCheck(x0, y0, x1 - x0, y1 - y0);
+}
+draw.addEventListener('pointerup', endDraw);
+draw.addEventListener('pointercancel', endDraw);
+
+function tipsText(result) {
+  let t = result.tips;
+  if (!t) return '';
+  if (!Array.isArray(t)) t = Object.values(t);
+  t = t.filter(Boolean).map(String);
+  return t.length ? '   💡 ' + t.join('  •  ') : '';
+}
+function offerRetry() {
+  const btn = document.getElementById('retry');
+  btn.textContent = 'Draw again (retry token · ' + (state.retry || 0) + ' left)';
+  btn.style.display = 'block';
+}
+document.getElementById('retry').addEventListener('click', () => {
+  if ((state.retry || 0) <= 0) return;
+  state.retry -= 1;
+  try { Android.setState(JSON.stringify(state)); } catch (e) {}
+  document.getElementById('retry').style.display = 'none';
+  msg.textContent = '';
+  banner.textContent = '';
+  points = [];
+  draw.getContext('2d').clearRect(0, 0, draw.width, draw.height);
+  bar.style.display = '';
+  finished = false; busy = false;
+});
+
+// Adjust the raw AI result: duplicate proof, strict AI-detector mode
+function prepareResult(result) {
+  if (result.duplicate) result.banner = 'ALREADY USED';
+  const susObj = result.ai_suspect || null;
+  const sus = susObj ? (Number(susObj.score) || 0) : 0;
+  result.sus = sus;
+  result.susReason = susObj && susObj.reason ? String(susObj.reason) : '';
+  let strict = false;
+  try { strict = Android.getStrict(); } catch (e) {}
+  if (result.done && strict && sus >= 85) {
+    result.done = false;
+    result.banner = 'LOOKS AI-MADE';
+    result.comment = 'Looks AI-generated or faked (' + sus + '%). ' + result.susReason;
+  }
+}
+
+async function runCheck(x, y, w, h) {
+  busy = true;
+  bar.style.display = 'none';
+  msg.textContent = 'Checking...';
+  try {
+    localStorage.setItem('task', taskInput.value);
+    localStorage.setItem('profile', profileSel.value);
+    localStorage.setItem('voice', document.getElementById('voice').checked ? '1' : '0');
+    localStorage.setItem('customdesc', customDescEl.value);
+  } catch (e) {}
+  const profile = PROFILES[Number(profileSel.value)];
+  const sendProfile = Object.assign({}, profile);
+  if (state.hintActive) sendProfile.hint = true;
+  if (profile.name === 'Custom') sendProfile.desc = customDescEl.value;
+  const W = window.innerWidth, H = window.innerHeight;
+  const result = await new Promise((res) => {
+    resolveResult = res;
+    Android.check(taskInput.value, JSON.stringify(sendProfile), x / W, y / H, w / W, h / H);
+  });
+  if (state.hintActive) { state.hintActive = false; try { Android.setState(JSON.stringify(state)); } catch (e) {} }
+  msg.textContent = '';
+  if (result.error) {
+    msg.textContent = 'Error: ' + result.error + '  (tap to close)';
+    busy = false; finished = true;
+    return;
+  }
+  prepareResult(result);
+  await playCombo(result);
+  busy = false; finished = true;
+  if (!result.done && (state.retry || 0) > 0) offerRetry();
+}
+
+// ---------- audio ----------
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+function note(freq, start, dur, type = 'triangle', vol = 0.18) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, AC.currentTime + start);
+  g.gain.linearRampToValueAtTime(vol, AC.currentTime + start + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + start + dur);
+  o.connect(g).connect(AC.destination);
+  o.start(AC.currentTime + start);
+  o.stop(AC.currentTime + start + dur + 0.05);
+}
+const semitone = (base, n) => base * Math.pow(2, n / 12);
+
+// Bright bell tone: a few harmonics, instant attack, ringing decay
+function bell(freq, start, dur, vol) {
+  const partials = [[1, 1], [2, 0.45], [3, 0.2], [4.2, 0.1]];
+  partials.forEach(([m, a]) => {
+    const o = AC.createOscillator(), g = AC.createGain();
+    const t = AC.currentTime + start;
+    o.type = 'sine'; o.frequency.value = freq * m;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol * a, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur / (1 + (m - 1) * 0.3));
+    o.connect(g).connect(AC.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  });
+}
+// Happy rising "ding ding ding ding", a bit higher for every bonus
+function ding(level) {
+  const base = 523.25 * Math.pow(2, (level * 2) / 12);
+  bell(base, 0, 0.5, 0.22);
+  bell(base * 1.26, 0.11, 0.5, 0.22);
+  bell(base * 1.5, 0.22, 0.5, 0.22);
+  bell(base * 2, 0.33, 0.9, 0.26);
+}
+// Big finish: a fast sparkling run up, then a held bright chord
+function fanfare() {
+  const run = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093];
+  run.forEach((f, i) => bell(f, i * 0.07, 0.6, 0.2));
+  const t = run.length * 0.07 + 0.05;
+  [1046.5, 1318.5, 1568, 2093].forEach(f => bell(f, t, 1.6, 0.22));
+}
+function voiceOn() { return document.getElementById('voice').checked; }
+// kind: 'bonus' or 'finale' uses your own recording if you made one (pitch/speed shift per bonus); otherwise the phone voice.
+function speak(text, pitch, rate, kind) {
+  if (!voiceOn()) return;
+  try {
+    if (kind && Android.hasVoice(kind)) { Android.playVoice(kind, pitch, rate); return; }
+  } catch (e) {}
+  Android.speak(text, pitch, rate);
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ---------- visuals ----------
+function showBanner(text, size) {
+  const vw = window.innerWidth || document.documentElement.clientWidth || 360;
+  const fit = (vw * 0.92) / (text.length * 0.62);
+  banner.style.fontSize = Math.max(18, Math.min(size, fit)) + 'px';
+  const bs = BANNER_STYLES[state.banner] || BANNER_STYLES.banner_default;
+  if (bs.gradient) {
+    banner.style.color = 'transparent';
+    banner.style.backgroundImage = bs.gradient;
+    banner.style.webkitBackgroundClip = 'text';
+    banner.style.backgroundClip = 'text';
+    banner.style.textShadow = 'none';
+    banner.style.filter = 'drop-shadow(0 2px 2px #000)';
+  } else {
+    banner.style.color = bs.color;
+    banner.style.backgroundImage = 'none';
+    banner.style.webkitBackgroundClip = 'border-box';
+    banner.style.backgroundClip = 'border-box';
+    banner.style.textShadow = bs.shadow;
+    banner.style.filter = 'none';
+  }
+  banner.textContent = text;
+  banner.classList.remove('pop');
+  void banner.offsetWidth;
+  banner.classList.add('pop');
+}
+
+let particles = [];
+function explode() {
+  sizeCanvases();
+  const cx = fx.width / 2, cy = fx.height / 2;
+  const colors = CONFETTI_THEMES[state.confetti] || ['#ff4fb8', '#ffd23f', '#3ee6ff', '#7dff6b', '#ffffff', '#ff7a3d'];
+  for (let i = 0; i < 300; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 3 + Math.random() * 14;
+    particles.push({
+      x: cx, y: cy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4,
+      r: 4 + Math.random() * 7, c: colors[i % colors.length], life: 110 + Math.random() * 60
+    });
+  }
+  const ctx = fx.getContext('2d');
+  (function frame() {
+    ctx.clearRect(0, 0, fx.width, fx.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.35; p.vx *= 0.99; p.life--;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 40));
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x, p.y, p.r, p.r);
+    });
+    ctx.globalAlpha = 1;
+    particles = particles.filter(p => p.life > 0);
+    if (particles.length) requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, fx.width, fx.height);
+  })();
+}
+
+function flash() {
+  const f = document.createElement('div');
+  f.style.cssText = 'position:absolute;inset:0;background:#fff;z-index:9;pointer-events:none;transition:opacity .6s';
+  document.body.appendChild(f);
+  requestAnimationFrame(() => { f.style.opacity = '0'; });
+  setTimeout(() => f.remove(), 700);
+}
+
+// ---------- rewards after the combo: points, multiplier, daily goal, level up ----------
+async function showRewards(result, earnedCount) {
+  const r = awardPoints(earnedCount);
+  const newAchv = checkAchievements();
+  const questsDone = updateQuests(earnedCount, r.mult);
+  try { Android.setState(JSON.stringify(state)); } catch (e) {}
+  try {
+    if (result.proof) Android.saveWin(result.proof, taskInput.value, r.pts, earnedCount);
+  } catch (e) {}
+  await sleep(400);
+  bell(1318.5, 0, 0.5, 0.22);
+  bell(1760, 0.1, 0.8, 0.22);
+  showBanner('+' + r.pts + ' POINTS', 90);
+  await sleep(1300);
+  if (r.doubled) {
+    ding(1);
+    showBanner('DOUBLE POINTS x2!', 90);
+    await sleep(1200);
+  }
+  if (r.coinDoubled) {
+    ding(1);
+    showBanner('COINS x2!', 80);
+    await sleep(1100);
+  }
+  if (r.heldForApproval) {
+    showBanner('COINS PENDING PARENT OK', 60);
+    await sleep(1400);
+  }
+  if (r.mult > 1) {
+    ding(2);
+    showBanner('COMBO x' + r.mult + '!', 100);
+    await sleep(1200);
+  }
+  if (r.goalHit) {
+    fanfare(); explode(); Android.vibrate(200);
+    speak('Daily goal!', 2, 1.3, 'finale');
+    showBanner('DAILY GOAL! +50', 100);
+    await sleep(1800);
+  }
+  if (r.leveledUp) {
+    fanfare(); explode(); Android.vibrate(300);
+    speak('Level up!', 2, 1.3, 'finale');
+    showBanner('LEVEL ' + r.newLv + ': ' + rankOf(r.newLv).toUpperCase(), 90);
+    await sleep(2000);
+  }
+  for (const name of newAchv) {
+    fanfare(); explode(); Android.vibrate(200);
+    showBanner('ACHIEVEMENT: ' + name, 72);
+    await sleep(1600);
+  }
+  for (const q of questsDone) {
+    ding(2);
+    showBanner('QUEST DONE +' + q.reward + ' coins', 76);
+    await sleep(1300);
+  }
+  renderStats();
+  return r;
+}
+
+// ---------- the combo ----------
+const CHEERS = ['Yes!', 'Wow!', 'Amazing!', 'Incredible!', 'Unbelievable!', 'Legendary!'];
+
+async function playCombo(result) {
+  try { await AC.resume(); } catch (e) {}
+  const earned = (result.bonuses || []).filter(b => b.earned);
+
+  if (!result.done) {
+    note(130, 0, 0.35, 'square', 0.2);
+    note(98, 0.2, 0.5, 'square', 0.2);
+    speak('Not yet', 0.8, 0.9, 'none');
+    showBanner(result.banner || 'NOT YET', 90);
+    msg.textContent = (result.comment || '') + tipsText(result) + '   (tap to close)';
+    return;
+  }
+
+  for (let i = 0; i < earned.length; i++) {
+    ding(i);
+    Android.vibrate(40);
+    showBanner('BONUS ' + earned[i].name.toUpperCase() + '!', 64 + i * 6);
+    speak(CHEERS[Math.min(i, CHEERS.length - 1)], 1.0 + i * 0.25, 1.0 + i * 0.12, 'bonus');
+    await sleep(1100);
+  }
+
+  if (earned.length === 0) {
+    bell(880, 0, 0.6, 0.25);
+    bell(1318.5, 0.12, 0.9, 0.25);
+    speak('Done!', 1.5, 1.1, 'finale');
+    showBanner('DONE!', 100);
+    await sleep(1000);
+  } else {
+    document.body.classList.add('shake');
+    Android.vibrate(400);
+    flash();
+    explode();
+    fanfare();
+    speak('Success!', 2.5, 1.5, 'finale');
+    showBanner('SUCCESS!!!', 150);
+    await sleep(1600);
+    explode();
+    document.body.classList.remove('shake');
+  }
+
+  const r = await showRewards(result, earned.length);
+  let text = (result.comment || '') + '   +' + r.pts + ' pts' + (r.mult > 1 ? ' (x' + r.mult + ' combo)' : '');
+  if (result.sus >= 60) {
+    text += '   Heads up: this might be AI-made or faked (' + result.sus + '%). ' + result.susReason;
+  }
+  msg.textContent = text + tipsText(result) + '   (tap to close)';
+}
+</script>
+</body>
+</html>

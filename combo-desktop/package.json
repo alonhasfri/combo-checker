@@ -1,0 +1,17 @@
+{
+  "name": "combo-checker-desktop",
+  "version": "1.0.0",
+  "description": "Combo Checker desktop (Windows)",
+  "main": "main.js",
+  "author": "alonhasfri",
+  "license": "MIT",
+  "scripts": { "start": "electron .", "dist": "electron-builder --win portable" },
+  "devDependencies": { "electron": "31.7.6", "electron-builder": "24.13.3" },
+  "build": {
+    "appId": "com.combochecker.desktop",
+    "productName": "Combo Checker",
+    "files": ["main.js", "index.html"],
+    "win": { "target": "portable" },
+    "portable": { "artifactName": "combo-checker-windows.exe" }
+  }
+}
