@@ -21,8 +21,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7
+      - name: Restore signing key (if configured)
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_B64" ]; then
+            echo "$SIGNING_KEYSTORE_B64" | base64 -d > combo-android/app/combo.keystore
+            echo "Signing key restored."
+          else
+            echo "No SIGNING_KEYSTORE_B64 secret set; building with debug signing (not updatable in place)."
+          fi
       - name: Build
         working-directory: combo-android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: build-${{ github.run_number }}
         run: gradle assembleDebug --no-daemon
       - name: Publish APK
         env:
