@@ -44,6 +44,13 @@ class Prefs(ctx: Context) {
     var keyboardSeen: Boolean
         get() = p.getBoolean("kbSeen", false)
         set(v) = p.edit().putBoolean("kbSeen", v).apply()
+    /** "s", "m" or "l". */
+    var bubbleSize: String
+        get() = p.getString("bsize", "m")!!
+        set(v) = p.edit().putString("bsize", v).apply()
+    var haptics: Boolean
+        get() = p.getBoolean("haptics", true)
+        set(v) = p.edit().putBoolean("haptics", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

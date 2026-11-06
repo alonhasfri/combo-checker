@@ -6,6 +6,14 @@ words are typed into the text box you're in. Speech recognition is Whisper (via
 no subscription, and your voice never leaves the device. Internet is only used once, to download
 the speech model.
 
+## The app
+Same design language as Comboed (light/dark, rounded cards, bottom tabs):
+- **Home:** the floating-microphone switch, a setup checklist, your numbers (words today, time
+  saved, day streak), a box to try it, and recent dictations (tap to copy, hold to delete).
+- **Dictionary**, **Shortcuts** and **Style** tabs, each with search/add/edit and import.
+- **Settings** (gear): speech model, language, bubble (only while typing, size, vibration,
+  position), permissions, theme (same as phone / light / dark), privacy (history), updates.
+
 ## Install
 GitHub builds the APK automatically whenever something in `voice-bubble/` changes
 (workflow: `.github/workflows/build-voice-bubble.yml`). On your phone, open the repo's

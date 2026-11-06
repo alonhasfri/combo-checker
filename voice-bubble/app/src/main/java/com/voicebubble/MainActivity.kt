@@ -1,302 +1,256 @@
 package com.voicebubble
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
-import android.text.InputType
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import android.widget.Spinner
 import android.widget.TextView
 
-/** Setup screen: pick and download the speech model, grant the permissions, start the bubble. */
-class MainActivity : BaseActivity() {
+/**
+ * Home: the floating microphone switch, setup checklist, stats, a box to try it,
+ * and your recent dictations.
+ */
+class MainActivity : Screen() {
 
-    private lateinit var prefs: Prefs
-    private lateinit var modelStatus: TextView
-    private lateinit var progress: ProgressBar
-    private lateinit var downloadBtn: Button
-    private lateinit var micBtn: Button
-    private lateinit var overlayBtn: Button
-    private lateinit var typeBtn: Button
-    private lateinit var startBtn: Button
-    private lateinit var updateCard: LinearLayout
-    private lateinit var updateText: TextView
-    private lateinit var versionText: TextView
-    private lateinit var wordsInfo: TextView
-    private lateinit var stylesInfo: TextView
-    private lateinit var kbStatus: TextView
-    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
-    private val kbTick = object : Runnable {
-        override fun run() { updateKbStatus(); ticker.postDelayed(this, 700) }
-    }
     private var update: Updates.Release? = null
-    @Volatile private var downloading = false
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        prefs = Prefs(this)
-        page { col -> build(col) }
-    }
-
-    private fun build(col: LinearLayout) {
-        col.addView(text("Voice Bubble", 26f, bold = true))
-        col.addView(text("A floating microphone for every app. Tap it, talk, tap again: your words are typed in. " +
-                "Everything runs on your phone, for free.", 15f, color = Color.rgb(90, 96, 110)).apply { setPadding(0, dp(6), 0, dp(8)) })
-
-        // Update banner (hidden until a newer build is found).
-        updateCard = card(col, "")
-        updateCard.visibility = View.GONE
-        updateText = text("", 15f, bold = true)
-        updateCard.addView(updateText)
-        updateCard.addView(text("Tap Update, open the download, then tap Update again. Your model, words and settings stay.",
-            13f, color = grey))
-        updateCard.addView(button("Update") { openUpdate() })
-
-        // 1. Model
-        val c1 = card(col, "1. Speech model")
-        val group = RadioGroup(this)
-        Models.all.forEachIndexed { i, m ->
-            group.addView(RadioButton(this).apply {
-                id = 1000 + i
-                text = "${m.title}\n${m.detail}"
-                textSize = 14f
-                isChecked = prefs.modelId == m.id
-                setPadding(dp(4), dp(6), 0, dp(6))
-            })
-        }
-        group.setOnCheckedChangeListener { _, id ->
-            prefs.modelId = Models.all[id - 1000].id
-            refresh()
-        }
-        c1.addView(group)
-        modelStatus = text("", 14f).apply { setPadding(0, dp(6), 0, dp(4)) }
-        c1.addView(modelStatus)
-        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000; visibility = View.GONE }
-        c1.addView(progress)
-        downloadBtn = button("Download") { download() }
-        c1.addView(downloadBtn)
-
-        // 2. Language
-        val c2 = card(col, "2. Language you speak")
-        val spinner = Spinner(this)
-        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, Langs.all.map { it.second })
-        spinner.setSelection(Langs.all.indexOfFirst { it.first == prefs.lang }.coerceAtLeast(0))
-        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { prefs.lang = Langs.all[pos].first }
-            override fun onNothingSelected(p: AdapterView<*>?) {}
-        }
-        c2.addView(spinner)
-        c2.addView(text("Picking your language is a bit more accurate than auto-detect.", 13f, color = grey))
-
-        // 3. Permissions
-        val c3 = card(col, "3. Permissions")
-        micBtn = button("") {
-            val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= 33) perms += Manifest.permission.POST_NOTIFICATIONS
-            requestPermissions(perms.toTypedArray(), 1)
-        }
-        overlayBtn = button("") {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-        }
-        typeBtn = button("") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        c3.addView(micBtn)
-        c3.addView(overlayBtn)
-        if (BuildConfig.AUTOTYPE) {
-            c3.addView(typeBtn)
-            c3.addView(text("\"Type into apps\" is optional. Without it, the text is copied and you paste it. " +
-                    "To turn it on: Installed apps → Voice Bubble → On. If Android says it's a restricted setting: " +
-                    "App info → ⋮ → Allow restricted settings, then try again. It is only used to put your words into the selected text box.",
-                13f, color = grey))
-        } else {
-            c3.addView(text("Your words are copied when you finish talking. Tap the copied text in your keyboard's " +
-                    "suggestion bar (Gboard shows it there) or long-press the text box and tap Paste.",
-                13f, color = grey))
-        }
-
-        // 4. Start
-        val c4 = card(col, "4. Floating microphone")
-        startBtn = button("") { toggleBubble() }.apply {
-            textSize = 17f
-            minHeight = dp(56)
-        }
-        c4.addView(startBtn)
-        c4.addView(android.widget.CheckBox(this).apply {
-            text = "Only show while a keyboard is open"
-            textSize = 15f
-            isChecked = prefs.onlyWithKeyboard
-            setPadding(dp(4), dp(8), 0, dp(8))
-            setOnCheckedChangeListener { _, on ->
-                prefs.onlyWithKeyboard = on
-                // Let a running bubble pick up the change now.
-                if (BubbleService.running) startForegroundService(Intent(this@MainActivity, BubbleService::class.java))
-            }
-        })
-        kbStatus = text("", 13f, bold = true).apply { setPadding(dp(4), 0, 0, dp(6)) }
-        c4.addView(kbStatus)
-        c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it. " +
-                "It moves up by itself when the keyboard would cover it. If it doesn't appear while you type, untick the box above.",
-            13f, color = grey))
-
-        // Styles
-        val cst = card(col, "Styles")
-        stylesInfo = text("", 14f, color = grey)
-        cst.addView(stylesInfo)
-        cst.addView(button("Choose styles") { startActivity(Intent(this, StylesActivity::class.java)) })
-
-        // Dictionary & shortcuts
-        val cw = card(col, "Dictionary & shortcuts")
-        wordsInfo = text("", 14f, color = grey)
-        cw.addView(wordsInfo)
-        cw.addView(button("Open dictionary & shortcuts") { startActivity(Intent(this, WordsActivity::class.java)) })
-
-        // Try it
-        val c5 = card(col, "Try it here")
-        c5.addView(EditText(this).apply {
-            hint = "Tap here, then tap the bubble and talk"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
-            minLines = 3
-            gravity = Gravity.TOP
-        })
-
-        // Version and manual update check
-        versionText = text("", 13f, color = grey).apply { setPadding(dp(4), dp(18), 0, 0) }
-        col.addView(versionText)
-        col.addView(button("Check for updates") { checkUpdates(force = true) })
-    }
-
-    private fun checkUpdates(force: Boolean) {
-        if (force) versionText.text = "Checking…"
-        Updates.check(this, force) { r ->
-            runOnUiThread {
-                if (isFinishing) return@runOnUiThread
-                update = r
-                updateCard.visibility = if (r != null) View.VISIBLE else View.GONE
-                if (r != null) updateText.text = "⬇ A new version is ready (build ${r.build})"
-                versionText.text = "Version: build ${Updates.current}" + when {
-                    !force -> ""
-                    r != null -> " · build ${r.build} is available (see top)"
-                    else -> " · this is the newest (or no connection)"
-                }
-            }
-        }
-    }
-
-    private fun openUpdate() {
-        val r = update ?: return
-        // The browser downloads it; Android offers "Update" because it's the same app and signing key.
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl))) }
-            .onFailure { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.pageUrl))) } }
+    private var statusLine: TextView? = null
+    private val ticker = Handler(Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() { updateStatusLine(); ticker.postDelayed(this, 700) }
     }
 
     override fun onResume() {
         super.onResume()
-        refresh()
-        checkUpdates(force = false)
-        ticker.post(kbTick)
+        ticker.post(tick)
+        Updates.check(this, force = false) { r ->
+            runOnUiThread {
+                if (!isFinishing && (r?.build != update?.build)) { update = r; render() }
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        ticker.removeCallbacks(kbTick)
+        ticker.removeCallbacks(tick)
     }
 
-    private fun updateKbStatus() {
-        kbStatus.text = when {
-            !prefs.onlyWithKeyboard -> ""
-            !BubbleService.running -> ""
-            BubbleService.keyboardNow -> "✓ Keyboard detected right now"
-            prefs.keyboardSeen -> "✓ Keyboard detection works on this phone"
-            else -> "Hasn't seen a keyboard yet, so the bubble stays on screen. Tap the \"Try it here\" box below to test."
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) = render()
+
+    override fun render() {
+        val page = Ui.page(this)
+        page.addView(Ui.header(this, "Voice Bubble", gear = true, sub = "Speak in any app. Free and on your phone."))
+
+        update?.let { r -> page.addView(updateCard(r), Ui.lp(this, 16)) }
+        page.addView(hero(), Ui.lp(this, 16))
+
+        val steps = Setup.steps(this)
+        val missing = steps.filter { !it.done }
+        if (missing.any { it.required } || (missing.isNotEmpty() && Stats.total(this) == 0)) {
+            page.addView(setupCard(steps), Ui.lp(this, 14))
         }
-        kbStatus.visibility = if (kbStatus.text.isEmpty()) View.GONE else View.VISIBLE
+
+        page.addView(Ui.sectionTitle(this, "Your numbers"))
+        page.addView(statsRow())
+
+        page.addView(Ui.sectionTitle(this, "Try it"))
+        page.addView(tryCard())
+
+        page.addView(Ui.sectionTitle(this, "Recent"))
+        page.addView(recent())
+
+        Ui.tabScreen(this, page, "home")
+        updateStatusLine()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        refresh()
-    }
+    // ----- floating microphone -----
 
-    private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-    private fun refresh() {
-        val m = Models.byId(prefs.modelId)
-        val have = Models.isDownloaded(this, m)
-        if (!downloading) {
-            modelStatus.text = if (have) "✓ Downloaded. Works offline." else "Not downloaded yet (${m.bytes / 1_000_000} MB, one time; Wi-Fi recommended)"
-            downloadBtn.visibility = if (have) View.GONE else View.VISIBLE
-            downloadBtn.text = "Download"
-            progress.visibility = View.GONE
+    private fun hero(): View {
+        val on = BubbleService.running
+        val ready = Setup.readyToStart(this)
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPaddingRelative(dp(20), dp(20), dp(20), dp(20))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                if (on) intArrayOf(0xFF3A5BD9.toInt(), 0xFF6A3FD9.toInt()) else intArrayOf(0xFF2A3048.toInt(), 0xFF3A4157.toInt())
+            ).apply { cornerRadius = dp(22).toFloat() }
+            clipToOutline = true
         }
-        micBtn.text = if (hasMic()) "✓ Microphone" else "Allow microphone"
-        micBtn.isEnabled = !hasMic()
-        overlayBtn.text = if (Settings.canDrawOverlays(this)) "✓ Show over other apps" else "Allow showing over other apps"
-        overlayBtn.isEnabled = !Settings.canDrawOverlays(this)
-        typeBtn.text = if (InsertService.isOn) "✓ Type into apps" else "Turn on typing into apps (optional)"
-        val nw = Words.dictionary(this).size
-        val ns = Words.shortcuts(this).size
-        wordsInfo.text = if (nw + ns == 0) "Teach it names and words it gets wrong, and add shortcuts like \"btw\" → \"by the way\"."
-            else "$nw words · $ns shortcuts"
-        stylesInfo.text = Styles.Category.values().joinToString(" · ") { "${it.title}: ${Styles.get(this, it).title.trimEnd('.', '!')}" } +
-            if (AppDetector.canDetect(this)) "" else "\n⚠ Needs usage access to tell apps apart (open Choose styles)"
-        startBtn.text = if (BubbleService.running) "Hide floating microphone" else "Show floating microphone"
-    }
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(Ui.text(this, "Floating microphone", 14f, 0xCCFFFFFF.toInt()))
+        col.addView(Ui.text(this, if (on) "On" else "Off", 30f, 0xFFFFFFFF.toInt()))
+        statusLine = Ui.text(this, "", 13f, 0xE6FFFFFF.toInt(), bold = false).apply { setPaddingRelative(0, dp(2), 0, 0) }
+        col.addView(statusLine)
+        top.addView(col, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
 
-    private fun download() {
-        if (downloading) {
-            Downloader.cancelled = true
-            return
-        }
-        val m = Models.byId(prefs.modelId)
-        downloading = true
-        downloadBtn.text = "Cancel"
-        progress.visibility = View.VISIBLE
-        progress.progress = 0
-        modelStatus.text = "Downloading…"
-        Thread {
-            val err = Downloader.download(m.url, Models.file(this, m), m.bytes) { f ->
-                runOnUiThread {
-                    progress.progress = (f * 1000).toInt()
-                    modelStatus.text = "Downloading… ${(f * 100).toInt()}%  (${(f * m.bytes / 1_000_000).toInt()} of ${m.bytes / 1_000_000} MB)"
-                }
+        // Big round switch.
+        val knob = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (on) 0xFFFFFFFF.toInt() else 0x33FFFFFF)
+                setStroke(dp(2), 0x66FFFFFF)
             }
-            runOnUiThread {
-                downloading = false
-                refresh()
-                if (err != null) modelStatus.text = err
-            }
-        }.start()
+            addView(Ui.icon(this@MainActivity, R.drawable.ui_mic, if (on) 0xFF3A5BD9.toInt() else 0xFFFFFFFF.toInt()),
+                FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+            isClickable = true; isFocusable = true
+            contentDescription = if (on) "Turn the floating microphone off" else "Turn the floating microphone on"
+            Ui.ripple(this@MainActivity, this); clipToOutline = true
+            setOnClickListener { toggleBubble() }
+        }
+        top.addView(knob, LinearLayout.LayoutParams(dp(76), dp(76)))
+        card.addView(top)
+
+        card.addView(Ui.button(this, if (on) "Turn off" else if (ready) "Turn on" else "Finish setup to turn on",
+            if (on) R.drawable.ui_x else R.drawable.ui_play,
+            if (on) 0x33FFFFFF else 0xFFFFFFFF.toInt(), if (on) 0xFFFFFFFF.toInt() else 0xFF2B47B8.toInt(), heightDp = 46) { toggleBubble() },
+            Ui.lp(this, 16))
+        card.addView(Ui.text(this, "Tap the bubble to talk · tap again to finish · hold to cancel · drag to move",
+            12f, 0xBFFFFFFF.toInt(), bold = false).apply { setPaddingRelative(0, dp(10), 0, 0); gravity = Gravity.CENTER })
+        return card
+    }
+
+    private fun updateStatusLine() {
+        val v = statusLine ?: return
+        val prefs = Prefs(this)
+        v.text = when {
+            !BubbleService.running -> if (Setup.readyToStart(this)) "Tap the button to show the bubble" else "A few steps left (see below)"
+            !prefs.onlyWithKeyboard -> "Always on screen"
+            BubbleService.keyboardNow -> "Keyboard open · bubble showing"
+            prefs.keyboardSeen -> "Shows up while you type"
+            else -> "Stays on screen until it has seen your keyboard once"
+        }
     }
 
     private fun toggleBubble() {
         if (BubbleService.running) {
             startService(Intent(this, BubbleService::class.java).setAction(BubbleService.ACTION_STOP))
-            startBtn.postDelayed({ refresh() }, 300)
+            ticker.postDelayed({ render() }, 300)
             return
         }
-        val missing = when {
-            !Models.isDownloaded(this, Models.byId(prefs.modelId)) -> "Download the speech model first (step 1)."
-            !hasMic() -> "Allow the microphone first (step 3)."
-            !Settings.canDrawOverlays(this) -> "Allow showing over other apps first (step 3)."
-            else -> null
-        }
-        if (missing != null) {
-            android.widget.Toast.makeText(this, missing, android.widget.Toast.LENGTH_LONG).show()
+        val first = Setup.steps(this).firstOrNull { it.required && !it.done }
+        if (first != null) {
+            toast(first.title)
+            first.fix(this)
             return
         }
         startForegroundService(Intent(this, BubbleService::class.java))
-        startBtn.postDelayed({ refresh() }, 300)
+        ticker.postDelayed({ render() }, 300)
+    }
+
+    // ----- setup -----
+
+    private fun setupCard(steps: List<Setup.Step>): View {
+        val card = Ui.card(this)
+        val doneCount = steps.count { it.done }
+        val head = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPaddingRelative(dp(16), dp(14), dp(16), dp(10))
+            addView(Ui.text(this@MainActivity, "Get set up", 17f, p.ink))
+            addView(Ui.text(this@MainActivity, "$doneCount of ${steps.size} done", 13f, p.muted, bold = false))
+            addView(Ui.bar(this@MainActivity, doneCount.toFloat() / steps.size, p.accent, p.track), Ui.lp(this@MainActivity, 10))
+        }
+        card.addView(head)
+        steps.forEach { s ->
+            card.addView(Ui.divider(this, 0))
+            card.addView(if (s.done)
+                Ui.row(this, R.drawable.ui_check, "green", s.title, sub = s.sub, chevron = false)
+            else Ui.row(this, s.icon, s.tone, s.title, sub = s.sub) { s.fix(this) })
+        }
+        return card
+    }
+
+    // ----- stats -----
+
+    private fun statsRow(): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val items = listOf(
+            Triple(R.drawable.ui_mic, "blue", Stats.todayWords(this).toString() to "words today"),
+            Triple(R.drawable.ui_clock, "green", "${Stats.savedMinutes(this)} min" to "time saved"),
+            Triple(R.drawable.ui_spark, "orange", Stats.streak(this).toString() to "day streak"),
+        )
+        items.forEachIndexed { i, (res, tone, v) ->
+            val c = Ui.card(this).apply {
+                setPaddingRelative(dp(12), dp(12), dp(12), dp(12))
+                addView(Ui.tile(this@MainActivity, res, tone, 30, 17))
+                addView(Ui.text(this@MainActivity, v.first, 20f, p.ink).apply { setPaddingRelative(0, dp(8), 0, 0); maxLines = 1 })
+                addView(Ui.text(this@MainActivity, v.second, 12f, p.muted, bold = false))
+            }
+            row.addView(c, LinearLayout.LayoutParams(0, Ui.WRAP, 1f).apply { if (i > 0) marginStart = dp(10) })
+        }
+        val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        wrap.addView(row)
+        val total = Stats.total(this)
+        if (total > 0) wrap.addView(Ui.note(this, "$total dictations · ${Stats.words(this)} words in total").apply {
+            setPaddingRelative(dp(4), dp(8), 0, 0)
+        })
+        return wrap
+    }
+
+    // ----- try it -----
+
+    private fun tryCard(): View = Ui.paddedCard(this).apply {
+        addView(Ui.note(this@MainActivity, "Tap the box, then tap the bubble and talk. Your dictionary, shortcuts and the \"Other\" style apply here."))
+        addView(Ui.field(this@MainActivity, "Tap here to try…", multiLine = true).apply { minLines = 3 }, Ui.lp(this@MainActivity, 10))
+    }
+
+    // ----- recent -----
+
+    private fun recent(): View {
+        val items = Stats.history(this).take(15)
+        if (items.isEmpty()) {
+            return Ui.paddedCard(this).apply {
+                addView(Ui.note(this@MainActivity, if (Stats.historyOn(this@MainActivity))
+                    "What you dictate shows up here, so you can copy it again later. It never leaves your phone."
+                else "History is off (Settings → Privacy)."))
+            }
+        }
+        val card = Ui.card(this)
+        items.forEachIndexed { i, e ->
+            if (i > 0) card.addView(Ui.divider(this, 16))
+            val cat = Styles.categoryOf(e.app)
+            card.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPaddingRelative(dp(16), dp(12), dp(16), dp(12))
+                addView(Ui.text(this@MainActivity, e.text, 15f, p.ink, bold = false).apply {
+                    maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+                addView(Ui.text(this@MainActivity, "${Stats.ago(e.time)} · ${cat.title}", 12f, p.muted, bold = false).apply {
+                    setPaddingRelative(0, dp(4), 0, 0)
+                })
+                isClickable = true
+                Ui.ripple(this@MainActivity, this)
+                setOnClickListener { copy(e.text); toast("Copied") }
+                setOnLongClickListener {
+                    Ui.dialog(this@MainActivity).setMessage("Delete this from your history?")
+                        .setPositiveButton("Delete") { _, _ -> Stats.deleteEntry(this@MainActivity, e); render() }
+                        .setNegativeButton("Cancel", null).show()
+                    true
+                }
+            })
+        }
+        val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        wrap.addView(card)
+        wrap.addView(Ui.note(this, "Tap to copy · hold to delete").apply { setPaddingRelative(dp(4), dp(8), 0, 0) })
+        return wrap
+    }
+
+    // ----- update -----
+
+    private fun updateCard(r: Updates.Release): View = Ui.card(this).apply {
+        background = Ui.rounded(p.accentSoft, dp(20).toFloat())
+        addView(Ui.row(this@MainActivity, R.drawable.ui_download, "blue", "New version ready",
+            sub = "Build ${r.build} · installs over this one, nothing is lost") { openUpdate(r) })
+    }
+
+    private fun openUpdate(r: Updates.Release) {
+        // The browser downloads it; Android offers "Update" because it's the same app and signing key.
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl))) }
+            .onFailure { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.pageUrl))) } }
+        toast("Open the download, then tap Update")
     }
 }

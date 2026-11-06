@@ -33,9 +33,9 @@ class BubbleView(context: Context) : View(context) {
         val r = minOf(width, height) / 2f - 8 * d
 
         when (state) {
-            State.IDLE -> fill.color = Color.rgb(32, 44, 64)
+            State.IDLE -> fill.color = Color.rgb(58, 91, 217)
             State.RECORDING -> fill.color = Color.rgb(222, 48, 56)
-            State.WORKING -> fill.color = Color.rgb(36, 110, 220)
+            State.WORKING -> fill.color = Color.rgb(106, 63, 217)
         }
 
         if (state == State.RECORDING) {

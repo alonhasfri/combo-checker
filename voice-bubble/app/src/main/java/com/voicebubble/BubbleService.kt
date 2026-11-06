@@ -85,6 +85,7 @@ class BubbleService : Service() {
                 updateBubble()
             }.also { it.start() }
         }
+        applySize()
         updateBubble()
         // Load the model now so the first transcription doesn't wait for it.
         Thread { Whisper.ensureLoaded(Models.file(this, Models.byId(prefs.modelId)).path) }.start()
@@ -112,7 +113,7 @@ class BubbleService : Service() {
     private fun addBubble() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val dm = resources.displayMetrics
-        size = (72 * dm.density).toInt()
+        size = wantedSize()
         lp = WindowManager.LayoutParams(
             size, size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -227,7 +228,9 @@ class BubbleService : Service() {
         val lang = prefs.lang
         val prompt = Words.prompt(this)
         // The style of the app you're typing in (chat, work, email, other).
-        val cat = Styles.categoryOf(AppDetector.current(this))
+        val app = AppDetector.current(this)
+        val cat = Styles.categoryOf(app)
+        val seconds = audio.size / Recorder.RATE.toFloat()
         val style = Styles.get(this, cat)
         Thread {
             val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt) }.getOrNull()
@@ -241,7 +244,10 @@ class BubbleService : Service() {
                 when {
                     raw == null -> toast("Couldn't turn that into text")
                     text.isNullOrEmpty() -> toast("Didn't catch any words")
-                    else -> deliver(text)
+                    else -> {
+                        deliver(text)
+                        Stats.record(this, text, seconds, app)
+                    }
                 }
             }
         }.apply { name = "whisper" }.start()
@@ -266,6 +272,23 @@ class BubbleService : Service() {
     private fun setState(s: BubbleView.State) {
         view?.state = s
         updateBubble()
+    }
+
+    /** Bubble size in pixels from Settings (small / medium / large). */
+    private fun wantedSize(): Int {
+        val dpSize = when (prefs.bubbleSize) { "s" -> 58; "l" -> 88; else -> 72 }
+        return (dpSize * resources.displayMetrics.density).toInt()
+    }
+
+    /** Picks up a size changed in Settings while the bubble is running. */
+    private fun applySize() {
+        val v = view ?: return
+        val want = wantedSize()
+        if (want == size) return
+        size = want
+        lp.width = want
+        lp.height = want
+        runCatching { wm.updateViewLayout(v, lp) }
     }
 
     private fun measureOffset() {
@@ -302,6 +325,7 @@ class BubbleService : Service() {
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
     private fun buzz(ms: Long) {
+        if (!prefs.haptics) return
         val vib = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
         runCatching { vib.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)) }
     }
