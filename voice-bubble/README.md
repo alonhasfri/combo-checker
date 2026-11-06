@@ -35,6 +35,19 @@ There are two versions (same app, install one):
 
 Keep using Gboard (or any keyboard) as normal; the bubble works next to it.
 
+## Updating
+The app checks GitHub for a newer build when you open it and shows an **Update** card. Tap it,
+open the download, tap **Update**. Every build is signed with the same key, so it installs over
+the old one: no uninstalling, and the model, words and settings stay.
+
+## Dictionary & shortcuts
+- **Dictionary:** names and words it should spell your way. They are given to Whisper up front,
+  and anything that sounds close ("Komboed", "combo ed") is rewritten to your spelling.
+- **Shortcuts:** say "btw", get "by the way" (also catches "B.T.W.").
+- **Import from another app:** copy the prompt for Claude, give it screenshots of the other app's
+  lists, paste the code it writes into Import. Or read a screenshot on the phone (or share one to
+  Voice Bubble). **Copy my code** exports everything for backup or another phone.
+
 ## Notes
 - Built for 64-bit ARM phones from roughly 2018 onwards (ARMv8.2).
 - A sentence takes a few seconds to write out on *Accurate*, less on *Fast*.

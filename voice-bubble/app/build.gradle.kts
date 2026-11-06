@@ -88,3 +88,9 @@ android {
         jvmTarget = "17"
     }
 }
+
+dependencies {
+    // On-device text recognition, for importing words from a screenshot. Free, works offline.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    testImplementation("junit:junit:4.13.2")
+}

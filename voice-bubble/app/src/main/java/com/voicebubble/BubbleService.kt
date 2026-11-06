@@ -204,9 +204,11 @@ class BubbleService : Service() {
         setState(BubbleView.State.WORKING)
         val model = Models.file(this, Models.byId(prefs.modelId)).path
         val lang = prefs.lang
+        val prompt = Words.prompt(this)
         Thread {
-            val raw = runCatching { Whisper.transcribe(model, audio, lang, "") }.getOrNull()
-            val text = raw?.let { clean(it) }
+            val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt) }.getOrNull()
+            // Your dictionary spellings, then your shortcuts.
+            val text = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }?.let { Words.apply(this, it) }
             main.post {
                 working = false
                 setState(BubbleView.State.IDLE)

@@ -39,7 +39,7 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: voice-${{ github.run_number }}
-        run: gradle assembleBasicDebug assembleAutotypeDebug --no-daemon
+        run: gradle testBasicDebugUnitTest assembleBasicDebug assembleAutotypeDebug --no-daemon
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}

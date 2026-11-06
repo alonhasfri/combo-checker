@@ -1,12 +1,9 @@
 package com.voicebubble
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -14,7 +11,6 @@ import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -23,17 +19,13 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.RadioGroup
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 
 /** Setup screen: pick and download the speech model, grant the permissions, start the bubble. */
-class MainActivity : Activity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var prefs: Prefs
-    private val d by lazy { resources.displayMetrics.density }
-    private fun dp(v: Int) = (v * d).toInt()
-
     private lateinit var modelStatus: TextView
     private lateinit var progress: ProgressBar
     private lateinit var downloadBtn: Button
@@ -41,21 +33,32 @@ class MainActivity : Activity() {
     private lateinit var overlayBtn: Button
     private lateinit var typeBtn: Button
     private lateinit var startBtn: Button
+    private lateinit var updateCard: LinearLayout
+    private lateinit var updateText: TextView
+    private lateinit var versionText: TextView
+    private lateinit var wordsInfo: TextView
+    private var update: Updates.Release? = null
     @Volatile private var downloading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
-        window.statusBarColor = Color.rgb(246, 247, 250)
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        page { col -> build(col) }
+    }
 
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(22), dp(18), dp(40))
-        }
+    private fun build(col: LinearLayout) {
         col.addView(text("Voice Bubble", 26f, bold = true))
         col.addView(text("A floating microphone for every app. Tap it, talk, tap again: your words are typed in. " +
                 "Everything runs on your phone, for free.", 15f, color = Color.rgb(90, 96, 110)).apply { setPadding(0, dp(6), 0, dp(8)) })
+
+        // Update banner (hidden until a newer build is found).
+        updateCard = card(col, "")
+        updateCard.visibility = View.GONE
+        updateText = text("", 15f, bold = true)
+        updateCard.addView(updateText)
+        updateCard.addView(text("Tap Update, open the download, then tap Update again. Your model, words and settings stay.",
+            13f, color = grey))
+        updateCard.addView(button("Update") { openUpdate() })
 
         // 1. Model
         val c1 = card(col, "1. Speech model")
@@ -91,7 +94,7 @@ class MainActivity : Activity() {
             override fun onNothingSelected(p: AdapterView<*>?) {}
         }
         c2.addView(spinner)
-        c2.addView(text("Picking your language is a bit more accurate than auto-detect.", 13f, color = Color.rgb(110, 116, 130)))
+        c2.addView(text("Picking your language is a bit more accurate than auto-detect.", 13f, color = grey))
 
         // 3. Permissions
         val c3 = card(col, "3. Permissions")
@@ -111,11 +114,11 @@ class MainActivity : Activity() {
             c3.addView(text("\"Type into apps\" is optional. Without it, the text is copied and you paste it. " +
                     "To turn it on: Installed apps → Voice Bubble → On. If Android says it's a restricted setting: " +
                     "App info → ⋮ → Allow restricted settings, then try again. It is only used to put your words into the selected text box.",
-                13f, color = Color.rgb(110, 116, 130)))
+                13f, color = grey))
         } else {
             c3.addView(text("Your words are copied when you finish talking. Tap the copied text in your keyboard's " +
                     "suggestion bar (Gboard shows it there) or long-press the text box and tap Paste.",
-                13f, color = Color.rgb(110, 116, 130)))
+                13f, color = grey))
         }
 
         // 4. Start
@@ -126,7 +129,13 @@ class MainActivity : Activity() {
         }
         c4.addView(startBtn)
         c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it",
-            13f, color = Color.rgb(110, 116, 130)))
+            13f, color = grey))
+
+        // Dictionary & shortcuts
+        val cw = card(col, "Dictionary & shortcuts")
+        wordsInfo = text("", 14f, color = grey)
+        cw.addView(wordsInfo)
+        cw.addView(button("Open dictionary & shortcuts") { startActivity(Intent(this, WordsActivity::class.java)) })
 
         // Try it
         val c5 = card(col, "Try it here")
@@ -137,15 +146,40 @@ class MainActivity : Activity() {
             gravity = Gravity.TOP
         })
 
-        setContentView(ScrollView(this).apply {
-            setBackgroundColor(Color.rgb(246, 247, 250))
-            addView(col)
-        })
+        // Version and manual update check
+        versionText = text("", 13f, color = grey).apply { setPadding(dp(4), dp(18), 0, 0) }
+        col.addView(versionText)
+        col.addView(button("Check for updates") { checkUpdates(force = true) })
+    }
+
+    private fun checkUpdates(force: Boolean) {
+        if (force) versionText.text = "Checking…"
+        Updates.check(this, force) { r ->
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                update = r
+                updateCard.visibility = if (r != null) View.VISIBLE else View.GONE
+                if (r != null) updateText.text = "⬇ A new version is ready (build ${r.build})"
+                versionText.text = "Version: build ${Updates.current}" + when {
+                    !force -> ""
+                    r != null -> " · build ${r.build} is available (see top)"
+                    else -> " · this is the newest (or no connection)"
+                }
+            }
+        }
+    }
+
+    private fun openUpdate() {
+        val r = update ?: return
+        // The browser downloads it; Android offers "Update" because it's the same app and signing key.
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl))) }
+            .onFailure { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.pageUrl))) } }
     }
 
     override fun onResume() {
         super.onResume()
         refresh()
+        checkUpdates(force = false)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -168,6 +202,10 @@ class MainActivity : Activity() {
         overlayBtn.text = if (Settings.canDrawOverlays(this)) "✓ Show over other apps" else "Allow showing over other apps"
         overlayBtn.isEnabled = !Settings.canDrawOverlays(this)
         typeBtn.text = if (InsertService.isOn) "✓ Type into apps" else "Turn on typing into apps (optional)"
+        val nw = Words.dictionary(this).size
+        val ns = Words.shortcuts(this).size
+        wordsInfo.text = if (nw + ns == 0) "Teach it names and words it gets wrong, and add shortcuts like \"btw\" → \"by the way\"."
+            else "$nw words · $ns shortcuts"
         startBtn.text = if (BubbleService.running) "Hide floating microphone" else "Show floating microphone"
     }
 
@@ -215,34 +253,5 @@ class MainActivity : Activity() {
         }
         startForegroundService(Intent(this, BubbleService::class.java))
         startBtn.postDelayed({ refresh() }, 300)
-    }
-
-    // --- small UI helpers ---
-
-    private fun text(s: String, size: Float, bold: Boolean = false, color: Int = Color.rgb(24, 28, 38)) = TextView(this).apply {
-        text = s
-        textSize = size
-        setTextColor(color)
-        if (bold) typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private fun card(parent: LinearLayout, title: String): LinearLayout {
-        val c = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = 16 * d }
-            elevation = 2 * d
-        }
-        c.addView(text(title, 17f, bold = true).apply { setPadding(0, 0, 0, dp(6)) })
-        parent.addView(c, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(12)
-        })
-        return c
-    }
-
-    private fun button(label: String, onClick: () -> Unit) = Button(this).apply {
-        text = label
-        isAllCaps = false
-        setOnClickListener { onClick() }
     }
 }

@@ -28,6 +28,25 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".WordsActivity"
+            android:exported="true"
+            android:label="Voice Bubble words"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Share a screenshot (or a list) of another app's dictionary straight to Voice Bubble. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".BubbleService"
             android:exported="false"
