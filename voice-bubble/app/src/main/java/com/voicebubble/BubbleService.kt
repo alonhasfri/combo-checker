@@ -227,7 +227,12 @@ class BubbleService : Service() {
             return
         }
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Voice Bubble", text))
-        toast(if (InsertService.isOn) "Copied. Tap a text box and paste" else "Copied: long-press a text box and paste")
+        buzz(15)
+        toast(when {
+            !BuildConfig.AUTOTYPE -> "Copied: tap it in your keyboard's bar, or long-press → Paste"
+            InsertService.isOn -> "No text box selected. Copied: long-press a text box → Paste"
+            else -> "Copied: long-press a text box → Paste"
+        })
     }
 
     private fun setState(s: BubbleView.State) { view?.state = s }

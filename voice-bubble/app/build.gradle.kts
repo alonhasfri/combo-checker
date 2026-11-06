@@ -28,6 +28,23 @@ android {
         }
     }
 
+    buildFeatures { buildConfig = true }
+
+    // "basic" installs anywhere: Play Protect blocks browser-installed apps that contain an
+    // accessibility service, so this one copies the text and you paste it.
+    // "autotype" adds the accessibility service that types the text in for you.
+    flavorDimensions += "mode"
+    productFlavors {
+        create("basic") {
+            dimension = "mode"
+            buildConfigField("boolean", "AUTOTYPE", "false")
+        }
+        create("autotype") {
+            dimension = "mode"
+            buildConfigField("boolean", "AUTOTYPE", "true")
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")

@@ -39,15 +39,16 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: voice-${{ github.run_number }}
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleBasicDebug assembleAutotypeDebug --no-daemon
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp voice-bubble/app/build/outputs/apk/debug/app-debug.apk voice-bubble.apk
+          cp voice-bubble/app/build/outputs/apk/basic/debug/app-basic-debug.apk voice-bubble.apk
+          cp voice-bubble/app/build/outputs/apk/autotype/debug/app-autotype-debug.apk voice-bubble-autotype.apk
           # Never marked "latest": that release is what Comboed's update check points to.
-          gh release create "voice-bubble-${{ github.run_number }}" voice-bubble.apk \
+          gh release create "voice-bubble-${{ github.run_number }}" voice-bubble.apk voice-bubble-autotype.apk \
             --target "${{ github.sha }}" \
             --title "Voice Bubble build ${{ github.run_number }} (${{ github.ref_name }})" \
-            --notes "Voice Bubble: floating microphone, on-device speech to text. Open this page on your phone and tap voice-bubble.apk to install." \
+            --notes "Voice Bubble: floating microphone, on-device speech to text. On your phone, tap voice-bubble.apk to install (copies the text for you to paste). voice-bubble-autotype.apk also types the text in for you, but Play Protect blocks installing it from a browser." \
             --prerelease --latest=false

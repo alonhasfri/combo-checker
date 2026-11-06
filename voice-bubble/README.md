@@ -12,13 +12,19 @@ GitHub builds the APK automatically whenever something in `voice-bubble/` change
 **Releases** page, find the newest **Voice Bubble build**, and tap `voice-bubble.apk`.
 Allow "install unknown apps" for your browser when Android asks.
 
+There are two versions (same app, install one):
+- `voice-bubble.apk`: copies your words; tap them in the keyboard's suggestion bar or paste.
+- `voice-bubble-autotype.apk`: also types the words in for you, using an accessibility service.
+  Play Protect blocks browser-installed apps that have one, so this version only installs via
+  `adb install` from a computer, or with Play Protect's app scanning briefly turned off.
+
 ## First run
 1. **Speech model:** pick *Accurate* (190 MB, recommended) or *Fast* (60 MB) and press Download. One time, Wi-Fi recommended.
 2. **Language:** pick the language you speak (or Auto-detect).
 3. **Permissions:**
    - Microphone: required.
    - Show over other apps: required for the bubble.
-   - Type into apps: optional (Accessibility → Installed apps → Voice Bubble → On). Without it the text is copied and you paste it.
+   - Type into apps (autotype version only): Accessibility → Installed apps → Voice Bubble → On.
 4. Press **Show floating microphone**.
 
 ## Using it

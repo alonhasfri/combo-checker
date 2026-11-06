@@ -106,10 +106,17 @@ class MainActivity : Activity() {
         typeBtn = button("") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         c3.addView(micBtn)
         c3.addView(overlayBtn)
-        c3.addView(typeBtn)
-        c3.addView(text("\"Type into apps\" is optional. Without it, the text is copied and you paste it. " +
-                "To turn it on: Installed apps → Voice Bubble → On. It is only used to put your words into the selected text box.",
-            13f, color = Color.rgb(110, 116, 130)))
+        if (BuildConfig.AUTOTYPE) {
+            c3.addView(typeBtn)
+            c3.addView(text("\"Type into apps\" is optional. Without it, the text is copied and you paste it. " +
+                    "To turn it on: Installed apps → Voice Bubble → On. If Android says it's a restricted setting: " +
+                    "App info → ⋮ → Allow restricted settings, then try again. It is only used to put your words into the selected text box.",
+                13f, color = Color.rgb(110, 116, 130)))
+        } else {
+            c3.addView(text("Your words are copied when you finish talking. Tap the copied text in your keyboard's " +
+                    "suggestion bar (Gboard shows it there) or long-press the text box and tap Paste.",
+                13f, color = Color.rgb(110, 116, 130)))
+        }
 
         // 4. Start
         val c4 = card(col, "4. Floating microphone")
