@@ -1,0 +1,241 @@
+package com.voicebubble
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.TextView
+
+/** Setup screen: pick and download the speech model, grant the permissions, start the bubble. */
+class MainActivity : Activity() {
+
+    private lateinit var prefs: Prefs
+    private val d by lazy { resources.displayMetrics.density }
+    private fun dp(v: Int) = (v * d).toInt()
+
+    private lateinit var modelStatus: TextView
+    private lateinit var progress: ProgressBar
+    private lateinit var downloadBtn: Button
+    private lateinit var micBtn: Button
+    private lateinit var overlayBtn: Button
+    private lateinit var typeBtn: Button
+    private lateinit var startBtn: Button
+    @Volatile private var downloading = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        prefs = Prefs(this)
+        window.statusBarColor = Color.rgb(246, 247, 250)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(22), dp(18), dp(40))
+        }
+        col.addView(text("Voice Bubble", 26f, bold = true))
+        col.addView(text("A floating microphone for every app. Tap it, talk, tap again: your words are typed in. " +
+                "Everything runs on your phone, for free.", 15f, color = Color.rgb(90, 96, 110)).apply { setPadding(0, dp(6), 0, dp(8)) })
+
+        // 1. Model
+        val c1 = card(col, "1. Speech model")
+        val group = RadioGroup(this)
+        Models.all.forEachIndexed { i, m ->
+            group.addView(RadioButton(this).apply {
+                id = 1000 + i
+                text = "${m.title}\n${m.detail}"
+                textSize = 14f
+                isChecked = prefs.modelId == m.id
+                setPadding(dp(4), dp(6), 0, dp(6))
+            })
+        }
+        group.setOnCheckedChangeListener { _, id ->
+            prefs.modelId = Models.all[id - 1000].id
+            refresh()
+        }
+        c1.addView(group)
+        modelStatus = text("", 14f).apply { setPadding(0, dp(6), 0, dp(4)) }
+        c1.addView(modelStatus)
+        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000; visibility = View.GONE }
+        c1.addView(progress)
+        downloadBtn = button("Download") { download() }
+        c1.addView(downloadBtn)
+
+        // 2. Language
+        val c2 = card(col, "2. Language you speak")
+        val spinner = Spinner(this)
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, Langs.all.map { it.second })
+        spinner.setSelection(Langs.all.indexOfFirst { it.first == prefs.lang }.coerceAtLeast(0))
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { prefs.lang = Langs.all[pos].first }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        c2.addView(spinner)
+        c2.addView(text("Picking your language is a bit more accurate than auto-detect.", 13f, color = Color.rgb(110, 116, 130)))
+
+        // 3. Permissions
+        val c3 = card(col, "3. Permissions")
+        micBtn = button("") {
+            val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= 33) perms += Manifest.permission.POST_NOTIFICATIONS
+            requestPermissions(perms.toTypedArray(), 1)
+        }
+        overlayBtn = button("") {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        }
+        typeBtn = button("") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        c3.addView(micBtn)
+        c3.addView(overlayBtn)
+        c3.addView(typeBtn)
+        c3.addView(text("\"Type into apps\" is optional. Without it, the text is copied and you paste it. " +
+                "To turn it on: Installed apps → Voice Bubble → On. It is only used to put your words into the selected text box.",
+            13f, color = Color.rgb(110, 116, 130)))
+
+        // 4. Start
+        val c4 = card(col, "4. Floating microphone")
+        startBtn = button("") { toggleBubble() }.apply {
+            textSize = 17f
+            minHeight = dp(56)
+        }
+        c4.addView(startBtn)
+        c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it",
+            13f, color = Color.rgb(110, 116, 130)))
+
+        // Try it
+        val c5 = card(col, "Try it here")
+        c5.addView(EditText(this).apply {
+            hint = "Tap here, then tap the bubble and talk"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 3
+            gravity = Gravity.TOP
+        })
+
+        setContentView(ScrollView(this).apply {
+            setBackgroundColor(Color.rgb(246, 247, 250))
+            addView(col)
+        })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refresh()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        refresh()
+    }
+
+    private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    private fun refresh() {
+        val m = Models.byId(prefs.modelId)
+        val have = Models.isDownloaded(this, m)
+        if (!downloading) {
+            modelStatus.text = if (have) "✓ Downloaded. Works offline." else "Not downloaded yet (${m.bytes / 1_000_000} MB, one time; Wi-Fi recommended)"
+            downloadBtn.visibility = if (have) View.GONE else View.VISIBLE
+            downloadBtn.text = "Download"
+            progress.visibility = View.GONE
+        }
+        micBtn.text = if (hasMic()) "✓ Microphone" else "Allow microphone"
+        micBtn.isEnabled = !hasMic()
+        overlayBtn.text = if (Settings.canDrawOverlays(this)) "✓ Show over other apps" else "Allow showing over other apps"
+        overlayBtn.isEnabled = !Settings.canDrawOverlays(this)
+        typeBtn.text = if (InsertService.isOn) "✓ Type into apps" else "Turn on typing into apps (optional)"
+        startBtn.text = if (BubbleService.running) "Hide floating microphone" else "Show floating microphone"
+    }
+
+    private fun download() {
+        if (downloading) {
+            Downloader.cancelled = true
+            return
+        }
+        val m = Models.byId(prefs.modelId)
+        downloading = true
+        downloadBtn.text = "Cancel"
+        progress.visibility = View.VISIBLE
+        progress.progress = 0
+        modelStatus.text = "Downloading…"
+        Thread {
+            val err = Downloader.download(m.url, Models.file(this, m), m.bytes) { f ->
+                runOnUiThread {
+                    progress.progress = (f * 1000).toInt()
+                    modelStatus.text = "Downloading… ${(f * 100).toInt()}%  (${(f * m.bytes / 1_000_000).toInt()} of ${m.bytes / 1_000_000} MB)"
+                }
+            }
+            runOnUiThread {
+                downloading = false
+                refresh()
+                if (err != null) modelStatus.text = err
+            }
+        }.start()
+    }
+
+    private fun toggleBubble() {
+        if (BubbleService.running) {
+            startService(Intent(this, BubbleService::class.java).setAction(BubbleService.ACTION_STOP))
+            startBtn.postDelayed({ refresh() }, 300)
+            return
+        }
+        val missing = when {
+            !Models.isDownloaded(this, Models.byId(prefs.modelId)) -> "Download the speech model first (step 1)."
+            !hasMic() -> "Allow the microphone first (step 3)."
+            !Settings.canDrawOverlays(this) -> "Allow showing over other apps first (step 3)."
+            else -> null
+        }
+        if (missing != null) {
+            android.widget.Toast.makeText(this, missing, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        startForegroundService(Intent(this, BubbleService::class.java))
+        startBtn.postDelayed({ refresh() }, 300)
+    }
+
+    // --- small UI helpers ---
+
+    private fun text(s: String, size: Float, bold: Boolean = false, color: Int = Color.rgb(24, 28, 38)) = TextView(this).apply {
+        text = s
+        textSize = size
+        setTextColor(color)
+        if (bold) typeface = Typeface.DEFAULT_BOLD
+    }
+
+    private fun card(parent: LinearLayout, title: String): LinearLayout {
+        val c = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = 16 * d }
+            elevation = 2 * d
+        }
+        c.addView(text(title, 17f, bold = true).apply { setPadding(0, 0, 0, dp(6)) })
+        parent.addView(c, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(12)
+        })
+        return c
+    }
+
+    private fun button(label: String, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        isAllCaps = false
+        setOnClickListener { onClick() }
+    }
+}
