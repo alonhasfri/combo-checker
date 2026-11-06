@@ -42,4 +42,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp combo-android/app/build/outputs/apk/debug/app-debug.apk combo-checker.apk
-          gh release create "build-${{ github.run_number }}" combo-checker.apk --title "Combo Checker build ${{ github.run_number }}" --notes "Install this APK on your phone"
+          # Only builds from main become the "latest" release (what the permanent link and the
+          # in-app update check point to). Builds from other branches are test pre-releases.
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            gh release create "build-${{ github.run_number }}" combo-checker.apk --title "Comboed build ${{ github.run_number }}" --notes "Install this APK on your phone" --latest
+          else
+            gh release create "build-${{ github.run_number }}" combo-checker.apk --title "Comboed test build ${{ github.run_number }} (${{ github.ref_name }})" --notes "Test build - not the public version yet" --prerelease --latest=false
+          fi
