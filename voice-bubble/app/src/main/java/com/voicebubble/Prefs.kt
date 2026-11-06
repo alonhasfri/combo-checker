@@ -51,6 +51,14 @@ class Prefs(ctx: Context) {
     var haptics: Boolean
         get() = p.getBoolean("haptics", true)
         set(v) = p.edit().putBoolean("haptics", v).apply()
+    /** While a keyboard is open, sit right above it (instead of where you left it). */
+    var dockAboveKeyboard: Boolean
+        get() = p.getBoolean("dock", true)
+        set(v) = p.edit().putBoolean("dock", v).apply()
+    /** How far above the keyboard you dragged it (px). */
+    var dockLift: Int
+        get() = p.getInt("dockLift", 0)
+        set(v) = p.edit().putInt("dockLift", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

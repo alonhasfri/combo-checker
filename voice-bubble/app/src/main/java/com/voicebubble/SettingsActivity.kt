@@ -43,6 +43,10 @@ class SettingsActivity : Screen() {
             Ui.switchRow(this, R.drawable.ui_layout, "blue", "Only while typing", kbSub, prefs.onlyWithKeyboard) { on ->
                 prefs.onlyWithKeyboard = on; refreshBubble(); render()
             },
+            Ui.switchRow(this, R.drawable.ui_upload, "teal", "Sit right above the keyboard",
+                "While typing it waits just above the keys. Drag it to set how high.", prefs.dockAboveKeyboard) { on ->
+                prefs.dockAboveKeyboard = on; prefs.dockLift = 0; refreshBubble()
+            },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = sizes.first { it.first == prefs.bubbleSize }.second) {
                 val cur = sizes.indexOfFirst { it.first == prefs.bubbleSize }
                 Ui.dialog(this).setTitle("Bubble size").setSingleChoiceItems(sizes.map { it.second }.toTypedArray(), cur) { d, i ->
@@ -53,7 +57,7 @@ class SettingsActivity : Screen() {
                 prefs.haptics = on
             },
             Ui.row(this, R.drawable.ui_reset, "gray", "Reset bubble position", chevron = false) {
-                prefs.bubbleX = -1; prefs.bubbleY = -1
+                prefs.bubbleX = -1; prefs.bubbleY = -1; prefs.dockLift = 0
                 if (BubbleService.running) {
                     startService(Intent(this, BubbleService::class.java).setAction(BubbleService.ACTION_STOP))
                     window.decorView.postDelayed({ startForegroundService(Intent(this, BubbleService::class.java)) }, 400)

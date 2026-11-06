@@ -50,7 +50,9 @@ class BubbleService : Service() {
     private var watcher: KeyboardWatcher? = null
     private var keyboardOpen = false
     private var keyboardTop: Int? = null
-    private var homeY = 0          // where you put the bubble; it moves up only while a keyboard covers it
+    private var homeY = 0          // where you put the bubble when no keyboard is open
+    private var lastKbTop: Int? = null  // last known keyboard top, in case a reading lacks it
+    private var touchDragging = false   // don't move the bubble under your finger
     private var screenOffset = 0   // window y -> screen y
     private var size = 0
 
@@ -142,12 +144,12 @@ class BubbleService : Service() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY; startX = lp.x; startY = lp.y
-                    dragging = false; longPressed = false
+                    dragging = false; longPressed = false; touchDragging = false
                     main.postDelayed(longPress, 600)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - downX; val dy = e.rawY - downY
-                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; main.removeCallbacks(longPress) }
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; touchDragging = true; main.removeCallbacks(longPress) }
                     if (dragging) {
                         lp.x = (startX + dx).toInt().coerceAtLeast(0)
                         lp.y = (startY + dy).toInt().coerceAtLeast(0)
@@ -156,10 +158,21 @@ class BubbleService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     main.removeCallbacks(longPress)
-                    if (dragging) { prefs.bubbleX = lp.x; prefs.bubbleY = lp.y; homeY = lp.y }
+                    touchDragging = false
+                    if (dragging) {
+                        prefs.bubbleX = lp.x
+                        val dockY = dockedY()
+                        if (dockY != null && prefs.dockAboveKeyboard) {
+                            // Docked above the keyboard: remember how high above it you put it.
+                            val lift = (dockY - lp.y).coerceAtLeast(0)
+                            prefs.dockLift = lift
+                            lp.y = dockY - lift
+                            runCatching { wm.updateViewLayout(v, lp) }
+                        } else { prefs.bubbleY = lp.y; homeY = lp.y }
+                    }
                     else if (!longPressed) onTap()
                 }
-                MotionEvent.ACTION_CANCEL -> main.removeCallbacks(longPress)
+                MotionEvent.ACTION_CANCEL -> { main.removeCallbacks(longPress); touchDragging = false; updateBubble() }
             }
             true
         }
@@ -274,6 +287,22 @@ class BubbleService : Service() {
         updateBubble()
     }
 
+    /**
+     * Window y that puts the bubble right above the open keyboard (before your own lift),
+     * or null when no keyboard is open or docking is off.
+     */
+    private fun dockedY(): Int? {
+        if (!keyboardOpen) return null
+        keyboardTop?.let { lastKbTop = it }
+        // Keyboard height unknown for this reading: use the last one, or a typical keyboard.
+        val top = keyboardTop ?: lastKbTop ?: (resources.displayMetrics.heightPixels * 0.58f).toInt()
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        val atKeyboard = top - gap - size - screenOffset
+        return if (prefs.dockAboveKeyboard) maxOf(0, atKeyboard)
+        // Docking off: only move up if the keyboard would cover it.
+        else if (homeY > atKeyboard) maxOf(0, atKeyboard) else null
+    }
+
     /** Bubble size in pixels from Settings (small / medium / large). */
     private fun wantedSize(): Int {
         val dpSize = when (prefs.bubbleSize) { "s" -> 58; "l" -> 88; else -> 72 }
@@ -309,14 +338,13 @@ class BubbleService : Service() {
         val vis = if (show) View.VISIBLE else View.GONE
         if (v.visibility != vis) v.visibility = vis
 
-        var y = homeY
-        val top = keyboardTop
-        if (keyboardOpen && top != null) {
-            val margin = (12 * resources.displayMetrics.density).toInt()
-            val maxY = top - margin - size - screenOffset
-            if (y > maxY) y = maxOf(0, maxY)
+        val dock = dockedY()
+        val y = when {
+            dock == null -> homeY
+            prefs.dockAboveKeyboard -> maxOf(0, dock - prefs.dockLift)
+            else -> dock
         }
-        if (lp.y != y) {
+        if (!touchDragging && lp.y != y) {
             lp.y = y
             runCatching { wm.updateViewLayout(v, lp) }
         }
