@@ -66,6 +66,14 @@ class SettingsActivity : Screen() {
             },
         )))
 
+        page.addView(Ui.note(this, when {
+            BubbleService.drawnOverKeyboard -> "✓ The bubble is drawn on top of the keyboard. You can drag it onto the keys."
+            BuildConfig.AUTOTYPE -> "To draw the bubble on top of the keyboard (not just above it), turn on \"Type into apps\" below. " +
+                "Android only lets accessibility services draw over the keyboard."
+            else -> "Android only lets accessibility services draw over the keyboard, so in this version the bubble sits just above it. " +
+                "The autotype version can draw it on top of the keyboard."
+        }).apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+
         // Permissions
         page.addView(Ui.sectionTitle(this, "Permissions"))
         val perms = mutableListOf(

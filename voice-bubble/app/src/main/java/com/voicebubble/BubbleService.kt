@@ -36,12 +36,18 @@ class BubbleService : Service() {
         const val ACTION_STOP = "com.voicebubble.STOP"
         private const val CHANNEL = "bubble"
         @Volatile var running = false
+        @Volatile var instance: BubbleService? = null
+        /** Whether the bubble is currently drawn on top of the keyboard (autotype version with typing on). */
+        @Volatile var drawnOverKeyboard = false
         /** For the main screen's "keyboard detection" status line. */
         @Volatile var keyboardNow = false
     }
 
     private val main = Handler(Looper.getMainLooper())
-    private lateinit var wm: WindowManager
+    private lateinit var wm: WindowManager       // the bubble's window manager (app, or accessibility service)
+    private lateinit var appWm: WindowManager    // the app's own (for the keyboard detector)
+    /** True when the bubble is shown by the accessibility service, which draws it on top of the keyboard. */
+    private var onTopOfKeyboard = false
     private lateinit var prefs: Prefs
     private var view: BubbleView? = null
     private lateinit var lp: WindowManager.LayoutParams
@@ -76,10 +82,12 @@ class BubbleService : Service() {
             return START_NOT_STICKY
         }
         running = true
+        instance = this
         prefs = Prefs(this)
+        appWm = getSystemService(WINDOW_SERVICE) as WindowManager
         if (view == null) {
             addBubble()
-            watcher = KeyboardWatcher(this, wm) { open, top ->
+            watcher = KeyboardWatcher(this, appWm) { open, top ->
                 keyboardOpen = open
                 keyboardTop = top
                 keyboardNow = open
@@ -113,12 +121,19 @@ class BubbleService : Service() {
     }
 
     private fun addBubble() {
-        wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        // Normal apps' floating windows are always drawn under the keyboard. Only an accessibility
+        // service may draw on top of it, so when "Type into apps" is on, the bubble is shown through it.
+        val acc = InsertService.instance
+        val accWm = acc?.let { runCatching { it.getSystemService(WINDOW_SERVICE) as WindowManager }.getOrNull() }
+        onTopOfKeyboard = accWm != null
+        drawnOverKeyboard = onTopOfKeyboard
+        wm = accWm ?: appWm
         val dm = resources.displayMetrics
         size = wantedSize()
         lp = WindowManager.LayoutParams(
             size, size,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            if (onTopOfKeyboard) WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            else WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             // Not focusable: the keyboard and the text box you're typing in stay as they are.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -131,8 +146,32 @@ class BubbleService : Service() {
         val v = BubbleView(this)
         attachTouch(v)
         v.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> measureOffset() }
-        wm.addView(v, lp)
+        try {
+            wm.addView(v, lp)
+        } catch (e: Exception) {
+            if (!onTopOfKeyboard) throw e
+            // The accessibility service went away in the meantime: fall back to a normal floating window.
+            onTopOfKeyboard = false
+            drawnOverKeyboard = false
+            wm = appWm
+            lp.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            wm.addView(v, lp)
+        }
         view = v
+    }
+
+    /** Re-creates the bubble when "Type into apps" is switched on or off, so it moves over or under the keyboard. */
+    fun reattach() {
+        main.post {
+            if (!running || recorder.isRecording || working) return@post
+            val old = view ?: return@post
+            val wantOnTop = InsertService.instance != null
+            if (wantOnTop == onTopOfKeyboard) return@post
+            runCatching { wm.removeView(old) }
+            view = null
+            addBubble()
+            updateBubble()
+        }
     }
 
     private fun attachTouch(v: BubbleView) {
@@ -164,7 +203,8 @@ class BubbleService : Service() {
                         val dockY = dockedY()
                         if (dockY != null && prefs.dockAboveKeyboard) {
                             // Docked above the keyboard: remember how high above it you put it.
-                            val lift = (dockY - lp.y).coerceAtLeast(0)
+                            // Drawn on top of the keyboard, it may sit on the keys; otherwise only above them.
+                            val lift = (dockY - lp.y).coerceAtLeast(if (onTopOfKeyboard) -resources.displayMetrics.heightPixels else 0)
                             prefs.dockLift = lift
                             lp.y = dockY - lift
                             runCatching { wm.updateViewLayout(v, lp) }
@@ -285,6 +325,8 @@ class BubbleService : Service() {
     private fun setState(s: BubbleView.State) {
         view?.state = s
         updateBubble()
+        // A switch of "Type into apps" during a recording is applied once it's done.
+        if (s == BubbleView.State.IDLE) reattach()
     }
 
     /**
@@ -299,8 +341,8 @@ class BubbleService : Service() {
         val gap = (8 * resources.displayMetrics.density).toInt()
         val atKeyboard = top - gap - size - screenOffset
         return if (prefs.dockAboveKeyboard) maxOf(0, atKeyboard)
-        // Docking off: only move up if the keyboard would cover it.
-        else if (homeY > atKeyboard) maxOf(0, atKeyboard) else null
+        // Docking off: drawn on top of the keyboard it can stay put; otherwise move up only if it would be covered.
+        else if (!onTopOfKeyboard && homeY > atKeyboard) maxOf(0, atKeyboard) else null
     }
 
     /** Bubble size in pixels from Settings (small / medium / large). */
@@ -341,7 +383,7 @@ class BubbleService : Service() {
         val dock = dockedY()
         val y = when {
             dock == null -> homeY
-            prefs.dockAboveKeyboard -> maxOf(0, dock - prefs.dockLift)
+            prefs.dockAboveKeyboard -> (dock - prefs.dockLift).coerceIn(0, maxOf(0, resources.displayMetrics.heightPixels - size))
             else -> dock
         }
         if (!touchDragging && lp.y != y) {
@@ -360,6 +402,8 @@ class BubbleService : Service() {
 
     override fun onDestroy() {
         running = false
+        instance = null
+        drawnOverKeyboard = false
         keyboardNow = false
         main.removeCallbacksAndMessages(null)
         watcher?.stop()

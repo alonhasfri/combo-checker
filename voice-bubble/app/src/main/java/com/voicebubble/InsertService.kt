@@ -22,9 +22,14 @@ class InsertService : AccessibilityService() {
 
     private var lastEditable: AccessibilityNodeInfo? = null
 
-    override fun onServiceConnected() { instance = this }
-    override fun onDestroy() { instance = null; super.onDestroy() }
-    override fun onUnbind(intent: android.content.Intent?): Boolean { instance = null; return super.onUnbind(intent) }
+    // The bubble moves on top of the keyboard while this service is on (see BubbleService.addBubble).
+    override fun onServiceConnected() { instance = this; BubbleService.instance?.reattach() }
+    override fun onDestroy() { instance = null; BubbleService.instance?.reattach(); super.onDestroy() }
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        instance = null
+        BubbleService.instance?.reattach()
+        return super.onUnbind(intent)
+    }
     override fun onInterrupt() {}
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
