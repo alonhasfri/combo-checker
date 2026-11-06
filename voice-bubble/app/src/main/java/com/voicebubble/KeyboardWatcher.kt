@@ -43,7 +43,11 @@ class KeyboardWatcher(
         val lp = WindowManager.LayoutParams(
             1, WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            // NOT_FOCUSABLE + ALT_FOCUSABLE_IM together tell Android this window works with the keyboard,
+            // so the keyboard resizes it and reports itself to it. Without ALT_FOCUSABLE_IM it is
+            // treated as a window that never uses a keyboard and is told nothing.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSPARENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START

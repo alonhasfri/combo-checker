@@ -36,6 +36,8 @@ class BubbleService : Service() {
         const val ACTION_STOP = "com.voicebubble.STOP"
         private const val CHANNEL = "bubble"
         @Volatile var running = false
+        /** For the main screen's "keyboard detection" status line. */
+        @Volatile var keyboardNow = false
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -78,6 +80,8 @@ class BubbleService : Service() {
             watcher = KeyboardWatcher(this, wm) { open, top ->
                 keyboardOpen = open
                 keyboardTop = top
+                keyboardNow = open
+                if (open && !prefs.keyboardSeen) prefs.keyboardSeen = true
                 updateBubble()
             }.also { it.start() }
         }
@@ -276,7 +280,9 @@ class BubbleService : Service() {
     private fun updateBubble() {
         val v = view ?: return
         val busy = recorder.isRecording || working
-        val show = !prefs.onlyWithKeyboard || keyboardOpen || busy
+        // Until a keyboard has been detected at least once, keep the bubble on screen:
+        // if detection doesn't work on this phone, a hidden bubble would be unusable.
+        val show = !prefs.onlyWithKeyboard || !prefs.keyboardSeen || keyboardOpen || busy
         val vis = if (show) View.VISIBLE else View.GONE
         if (v.visibility != vis) v.visibility = vis
 
@@ -302,6 +308,7 @@ class BubbleService : Service() {
 
     override fun onDestroy() {
         running = false
+        keyboardNow = false
         main.removeCallbacksAndMessages(null)
         watcher?.stop()
         if (recorder.isRecording) recorder.cancel()

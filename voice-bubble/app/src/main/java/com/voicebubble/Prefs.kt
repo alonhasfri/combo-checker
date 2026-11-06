@@ -40,6 +40,10 @@ class Prefs(ctx: Context) {
     var onlyWithKeyboard: Boolean
         get() = p.getBoolean("onlyKb", true)
         set(v) = p.edit().putBoolean("onlyKb", v).apply()
+    /** Set once a keyboard has been detected on this phone: proof that hiding the bubble is safe. */
+    var keyboardSeen: Boolean
+        get() = p.getBoolean("kbSeen", false)
+        set(v) = p.edit().putBoolean("kbSeen", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

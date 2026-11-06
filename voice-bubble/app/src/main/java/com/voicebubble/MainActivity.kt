@@ -38,6 +38,11 @@ class MainActivity : BaseActivity() {
     private lateinit var versionText: TextView
     private lateinit var wordsInfo: TextView
     private lateinit var stylesInfo: TextView
+    private lateinit var kbStatus: TextView
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val kbTick = object : Runnable {
+        override fun run() { updateKbStatus(); ticker.postDelayed(this, 700) }
+    }
     private var update: Updates.Release? = null
     @Volatile private var downloading = false
 
@@ -140,6 +145,8 @@ class MainActivity : BaseActivity() {
                 if (BubbleService.running) startForegroundService(Intent(this@MainActivity, BubbleService::class.java))
             }
         })
+        kbStatus = text("", 13f, bold = true).apply { setPadding(dp(4), 0, 0, dp(6)) }
+        c4.addView(kbStatus)
         c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it. " +
                 "It moves up by itself when the keyboard would cover it. If it doesn't appear while you type, untick the box above.",
             13f, color = grey))
@@ -199,6 +206,23 @@ class MainActivity : BaseActivity() {
         super.onResume()
         refresh()
         checkUpdates(force = false)
+        ticker.post(kbTick)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ticker.removeCallbacks(kbTick)
+    }
+
+    private fun updateKbStatus() {
+        kbStatus.text = when {
+            !prefs.onlyWithKeyboard -> ""
+            !BubbleService.running -> ""
+            BubbleService.keyboardNow -> "✓ Keyboard detected right now"
+            prefs.keyboardSeen -> "✓ Keyboard detection works on this phone"
+            else -> "Hasn't seen a keyboard yet, so the bubble stays on screen. Tap the \"Try it here\" box below to test."
+        }
+        kbStatus.visibility = if (kbStatus.text.isEmpty()) View.GONE else View.VISIBLE
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
