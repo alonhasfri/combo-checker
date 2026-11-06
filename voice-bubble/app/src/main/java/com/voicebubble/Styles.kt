@@ -173,15 +173,17 @@ object Styles {
         var body = rest.trim()
         if (body.isNotEmpty()) body = body(body, style, keepGreetingComma = false)
         val sb = StringBuilder()
-        greeting?.let { g ->
+        val g = greeting
+        if (g != null) {
             val gg = if (veryCasual) g.lowercase() else capFirst(g)
             if (style == Style.FORMAL || style == Style.EXCITED) {
                 sb.append(gg).append(",\n\n")
             } else {
                 sb.append(gg).append(if (veryCasual) " " else ", ")
-                if (!veryCasual) body = body.replaceFirstChar { it.lowercaseChar() }.let { b ->
-                    // keep "I" and names capitalised
-                    if (b.startsWith("i ") || b.startsWith("i'")) "I" + b.substring(1) else b
+                if (!veryCasual) {
+                    val b = body.replaceFirstChar { it.lowercaseChar() }
+                    // keep "I" capitalised
+                    body = if (b.startsWith("i ") || b.startsWith("i'")) "I" + b.substring(1) else b
                 }
             }
         }
