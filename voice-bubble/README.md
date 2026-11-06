@@ -50,6 +50,18 @@ the old one: no uninstalling, and the model, words and settings stay.
   lists, paste the code it writes into Import. Or read a screenshot on the phone (or share one to
   Voice Bubble). **Copy my code** exports everything for backup or another phone.
 
+## Styles
+Like your chats casual and your email formal? Pick a style per kind of app (main screen → Choose styles):
+- **Formal.** Caps + punctuation (as Whisper writes it).
+- **Casual:** caps, fewer commas, no final period, contractions ("I am" → "I'm").
+- **very casual:** no caps, no punctuation except question marks.
+- **Excited!** The last sentence ends with "!".
+
+Categories: **Personal** (WhatsApp, Messages, Telegram, …), **Work** (Slack, Teams, …),
+**Email** (Gmail, Outlook, …; greeting and sign-off go on their own lines) and **Other**.
+To know which app you're in, the basic version needs **Usage access** (the Styles screen has a
+button). Without it, everything uses the Other style.
+
 ## Notes
 - Built for 64-bit ARM phones from roughly 2018 onwards (ARMv8.2).
 - A sentence takes a few seconds to write out on *Accurate*, less on *Fast*.

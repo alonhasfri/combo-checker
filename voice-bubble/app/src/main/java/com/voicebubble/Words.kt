@@ -54,8 +54,8 @@ object Words {
         return sb.append('.').toString()
     }
 
-    fun apply(c: Context, text: String): String =
-        applyShortcuts(applyDictionary(text, dictionary(c), shortcuts(c)), shortcuts(c))
+    fun apply(c: Context, text: String, capitalize: Boolean = true): String =
+        applyShortcuts(applyDictionary(text, dictionary(c), shortcuts(c)), shortcuts(c), capitalize)
 
     private class Tok(val start: Int, val end: Int, val text: String) { val n = norm(text) }
 
@@ -151,7 +151,7 @@ object Words {
     }
 
     /** "btw" becomes "by the way". Also catches "B.T.W." and "b t w". */
-    fun applyShortcuts(text: String, shorts: List<Shortcut>): String {
+    fun applyShortcuts(text: String, shorts: List<Shortcut>, capitalize: Boolean = true): String {
         if (shorts.isEmpty()) return text
         val toks = tokens(text)
         if (toks.isEmpty()) return text
@@ -179,7 +179,7 @@ object Words {
                 var w = sc.write
                 val before = text.substring(0, s).trimEnd()
                 val sentenceStart = before.isEmpty() || before.last() in ".!?\n"
-                if (sentenceStart && w.isNotEmpty() && w[0].isLowerCase()) w = w[0].uppercase() + w.substring(1)
+                if (capitalize && sentenceStart && w.isNotEmpty() && w[0].isLowerCase()) w = w[0].uppercase() + w.substring(1)
                 reps += Rep(s, e, w)
                 for (j in i until i + k) used[j] = true
                 i += k

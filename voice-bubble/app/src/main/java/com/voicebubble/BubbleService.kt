@@ -222,10 +222,15 @@ class BubbleService : Service() {
         val model = Models.file(this, Models.byId(prefs.modelId)).path
         val lang = prefs.lang
         val prompt = Words.prompt(this)
+        // The style of the app you're typing in (chat, work, email, other).
+        val cat = Styles.categoryOf(AppDetector.current(this))
+        val style = Styles.get(this, cat)
         Thread {
             val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt) }.getOrNull()
-            // Your dictionary spellings, then your shortcuts.
-            val text = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }?.let { Words.apply(this, it) }
+            // Style first, then your dictionary spellings and shortcuts (those are kept exactly as you wrote them).
+            val text = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }
+                ?.let { Styles.apply(it, style, cat) }
+                ?.let { Words.apply(this, it, capitalize = style != Styles.Style.VERY_CASUAL) }
             main.post {
                 working = false
                 setState(BubbleView.State.IDLE)

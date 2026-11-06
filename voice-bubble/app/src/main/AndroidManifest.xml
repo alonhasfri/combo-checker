@@ -9,6 +9,46 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Optional: lets it see which app is open, to pick the right writing style. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Apps whose icons are shown on the Styles screen, and Claude for the import helper. -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.samsung.android.messaging" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.thunderdog.challegram" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.snapchat.android" />
+        <package android:name="com.discord" />
+        <package android:name="jp.naver.line.android" />
+        <package android:name="com.viber.voip" />
+        <package android:name="com.facebook.mlite" />
+        <package android:name="com.instagram.barcelona" />
+        <package android:name="com.Slack" />
+        <package android:name="com.microsoft.teams" />
+        <package android:name="com.google.android.apps.dynamite" />
+        <package android:name="us.zoom.videomeetings" />
+        <package android:name="com.mattermost.rn" />
+        <package android:name="com.webex.meetings" />
+        <package android:name="com.linkedin.android" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.microsoft.office.outlook" />
+        <package android:name="com.samsung.android.email.provider" />
+        <package android:name="ch.protonmail.android" />
+        <package android:name="com.yahoo.mobile.client.android.mail" />
+        <package android:name="com.readdle.spark" />
+        <package android:name="com.fsck.k9" />
+        <package android:name="net.thunderbird.android" />
+        <package android:name="com.superhuman.mail" />
+        <package android:name="com.anthropic.claude" />
+    </queries>
 
     <application
         android:allowBackup="false"
@@ -46,6 +86,10 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".StylesActivity"
+            android:exported="false" />
 
         <service
             android:name=".BubbleService"

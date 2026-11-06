@@ -37,6 +37,7 @@ class MainActivity : BaseActivity() {
     private lateinit var updateText: TextView
     private lateinit var versionText: TextView
     private lateinit var wordsInfo: TextView
+    private lateinit var stylesInfo: TextView
     private var update: Updates.Release? = null
     @Volatile private var downloading = false
 
@@ -143,6 +144,12 @@ class MainActivity : BaseActivity() {
                 "It moves up by itself when the keyboard would cover it. If it doesn't appear while you type, untick the box above.",
             13f, color = grey))
 
+        // Styles
+        val cst = card(col, "Styles")
+        stylesInfo = text("", 14f, color = grey)
+        cst.addView(stylesInfo)
+        cst.addView(button("Choose styles") { startActivity(Intent(this, StylesActivity::class.java)) })
+
         // Dictionary & shortcuts
         val cw = card(col, "Dictionary & shortcuts")
         wordsInfo = text("", 14f, color = grey)
@@ -218,6 +225,8 @@ class MainActivity : BaseActivity() {
         val ns = Words.shortcuts(this).size
         wordsInfo.text = if (nw + ns == 0) "Teach it names and words it gets wrong, and add shortcuts like \"btw\" → \"by the way\"."
             else "$nw words · $ns shortcuts"
+        stylesInfo.text = Styles.Category.values().joinToString(" · ") { "${it.title}: ${Styles.get(this, it).title.trimEnd('.', '!')}" } +
+            if (AppDetector.canDetect(this)) "" else "\n⚠ Needs usage access to tell apps apart (open Choose styles)"
         startBtn.text = if (BubbleService.running) "Hide floating microphone" else "Show floating microphone"
     }
 
