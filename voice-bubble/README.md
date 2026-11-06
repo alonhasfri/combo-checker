@@ -32,6 +32,8 @@ There are two versions (same app, install one):
 - **Tap again**: it turns blue while it writes out what you said, then types it at your cursor.
 - **Long-press**: cancel.
 - **Drag**: move it. Hide it from its notification.
+- By default it only appears while a keyboard is open (any keyboard), and moves up if the keyboard
+  would cover it. Untick "Only show while a keyboard is open" to keep it on screen all the time.
 
 Keep using Gboard (or any keyboard) as normal; the bubble works next to it.
 

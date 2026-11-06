@@ -36,6 +36,10 @@ class Prefs(ctx: Context) {
     var lang: String
         get() = p.getString("lang", "auto")!!
         set(v) = p.edit().putString("lang", v).apply()
+    /** Show the bubble only while a keyboard is open (it always stays while recording). */
+    var onlyWithKeyboard: Boolean
+        get() = p.getBoolean("onlyKb", true)
+        set(v) = p.edit().putBoolean("onlyKb", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

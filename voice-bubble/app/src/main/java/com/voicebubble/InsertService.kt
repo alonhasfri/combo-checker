@@ -6,6 +6,8 @@ import android.content.ClipboardManager
 import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import android.graphics.Rect
 
 /**
  * Optional helper that types the text into whatever text box is selected in any app.
@@ -29,6 +31,14 @@ class InsertService : AccessibilityService() {
         // Remember the last text box that got focus, in case the app doesn't report focus later.
         val src = event?.source ?: return
         if (src.isEditable) lastEditable = src
+    }
+
+    /** Screen y of the keyboard's top edge, or -1 when no keyboard is open. */
+    fun keyboardTop(): Int {
+        val w = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } ?: return -1
+        val r = Rect()
+        w.getBoundsInScreen(r)
+        return if (r.height() > 0) r.top else -1
     }
 
     private fun focusedEditable(): AccessibilityNodeInfo? {

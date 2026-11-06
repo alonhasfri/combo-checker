@@ -128,7 +128,19 @@ class MainActivity : BaseActivity() {
             minHeight = dp(56)
         }
         c4.addView(startBtn)
-        c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it",
+        c4.addView(android.widget.CheckBox(this).apply {
+            text = "Only show while a keyboard is open"
+            textSize = 15f
+            isChecked = prefs.onlyWithKeyboard
+            setPadding(dp(4), dp(8), 0, dp(8))
+            setOnCheckedChangeListener { _, on ->
+                prefs.onlyWithKeyboard = on
+                // Let a running bubble pick up the change now.
+                if (BubbleService.running) startForegroundService(Intent(this@MainActivity, BubbleService::class.java))
+            }
+        })
+        c4.addView(text("Tap: start listening · Tap again: stop and type it in · Long-press: cancel · Drag: move it. " +
+                "It moves up by itself when the keyboard would cover it. If it doesn't appear while you type, untick the box above.",
             13f, color = grey))
 
         // Dictionary & shortcuts

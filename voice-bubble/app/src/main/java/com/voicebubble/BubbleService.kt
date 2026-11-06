@@ -19,6 +19,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
@@ -44,6 +45,12 @@ class BubbleService : Service() {
     private lateinit var lp: WindowManager.LayoutParams
     private val recorder = Recorder()
     @Volatile private var working = false
+    private var watcher: KeyboardWatcher? = null
+    private var keyboardOpen = false
+    private var keyboardTop: Int? = null
+    private var homeY = 0          // where you put the bubble; it moves up only while a keyboard covers it
+    private var screenOffset = 0   // window y -> screen y
+    private var size = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -66,7 +73,15 @@ class BubbleService : Service() {
         }
         running = true
         prefs = Prefs(this)
-        if (view == null) addBubble()
+        if (view == null) {
+            addBubble()
+            watcher = KeyboardWatcher(this, wm) { open, top ->
+                keyboardOpen = open
+                keyboardTop = top
+                updateBubble()
+            }.also { it.start() }
+        }
+        updateBubble()
         // Load the model now so the first transcription doesn't wait for it.
         Thread { Whisper.ensureLoaded(Models.file(this, Models.byId(prefs.modelId)).path) }.start()
         // Not sticky: if Android kills it, it can't get the microphone back without the app anyway.
@@ -93,7 +108,7 @@ class BubbleService : Service() {
     private fun addBubble() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val dm = resources.displayMetrics
-        val size = (72 * dm.density).toInt()
+        size = (72 * dm.density).toInt()
         lp = WindowManager.LayoutParams(
             size, size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -105,8 +120,10 @@ class BubbleService : Service() {
             x = prefs.bubbleX.takeIf { it >= 0 } ?: (dm.widthPixels - size)
             y = prefs.bubbleY.takeIf { it >= 0 } ?: (dm.heightPixels / 3)
         }
+        homeY = lp.y
         val v = BubbleView(this)
         attachTouch(v)
+        v.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> measureOffset() }
         wm.addView(v, lp)
         view = v
     }
@@ -134,7 +151,7 @@ class BubbleService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     main.removeCallbacks(longPress)
-                    if (dragging) { prefs.bubbleX = lp.x; prefs.bubbleY = lp.y }
+                    if (dragging) { prefs.bubbleX = lp.x; prefs.bubbleY = lp.y; homeY = lp.y }
                     else if (!longPressed) onTap()
                 }
                 MotionEvent.ACTION_CANCEL -> main.removeCallbacks(longPress)
@@ -237,7 +254,39 @@ class BubbleService : Service() {
         })
     }
 
-    private fun setState(s: BubbleView.State) { view?.state = s }
+    private fun setState(s: BubbleView.State) {
+        view?.state = s
+        updateBubble()
+    }
+
+    private fun measureOffset() {
+        val v = view ?: return
+        if (v.visibility != View.VISIBLE || !v.isAttachedToWindow) return
+        val loc = IntArray(2)
+        v.getLocationOnScreen(loc)
+        screenOffset = loc[1] - lp.y
+    }
+
+    /** Shows the bubble only while typing (if that's on), and keeps it above the keyboard. */
+    private fun updateBubble() {
+        val v = view ?: return
+        val busy = recorder.isRecording || working
+        val show = !prefs.onlyWithKeyboard || keyboardOpen || busy
+        val vis = if (show) View.VISIBLE else View.GONE
+        if (v.visibility != vis) v.visibility = vis
+
+        var y = homeY
+        val top = keyboardTop
+        if (keyboardOpen && top != null) {
+            val margin = (12 * resources.displayMetrics.density).toInt()
+            val maxY = top - margin - size - screenOffset
+            if (y > maxY) y = maxOf(0, maxY)
+        }
+        if (lp.y != y) {
+            lp.y = y
+            runCatching { wm.updateViewLayout(v, lp) }
+        }
+    }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
@@ -249,6 +298,7 @@ class BubbleService : Service() {
     override fun onDestroy() {
         running = false
         main.removeCallbacksAndMessages(null)
+        watcher?.stop()
         if (recorder.isRecording) recorder.cancel()
         if (working) Whisper.abort()
         view?.let { runCatching { wm.removeView(it) } }
