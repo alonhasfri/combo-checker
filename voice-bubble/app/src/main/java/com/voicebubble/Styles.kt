@@ -59,6 +59,27 @@ object Styles {
         sp(c).getString("style_${cat.name}", null)?.let { n -> Style.values().firstOrNull { it.name == n } } ?: defaults.getValue(cat)
     fun set(c: Context, cat: Category, s: Style) = sp(c).edit().putString("style_${cat.name}", s.name).apply()
 
+    // ----- styles for specific apps (override the category) -----
+
+    /** Apps with their own style, package → style. */
+    fun appStyles(c: Context): Map<String, Style> {
+        val o = try { org.json.JSONObject(sp(c).getString("appStyles", "{}")!!) } catch (e: Exception) { org.json.JSONObject() }
+        val out = LinkedHashMap<String, Style>()
+        for (k in o.keys()) Style.values().firstOrNull { it.name == o.optString(k) }?.let { out[k] = it }
+        return out
+    }
+
+    fun setAppStyle(c: Context, pkg: String, s: Style?) {
+        val o = org.json.JSONObject()
+        appStyles(c).forEach { (k, v) -> if (k != pkg) o.put(k, v.name) }
+        if (s != null) o.put(pkg, s.name)
+        sp(c).edit().putString("appStyles", o.toString()).apply()
+    }
+
+    /** The style to use in this app: its own if you set one, otherwise its category's. */
+    fun forApp(c: Context, pkg: String?): Style =
+        pkg?.let { appStyles(c)[it] } ?: get(c, categoryOf(pkg))
+
     /** Examples shown on the Styles screen (each style is applied to these live). */
     val samples = mapOf(
         Category.PERSONAL to "Hey, are you around tonight? I am thinking we could grab dinner at 7, if that works for you.",

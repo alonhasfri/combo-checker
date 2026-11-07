@@ -14,12 +14,26 @@ class SettingsActivity : Screen() {
 
         // Bubble
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
-        val sizes = listOf("s" to "Small", "m" to "Medium", "l" to "Large")
         page.addView(Ui.group(this, listOf(
-            Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = sizes.first { it.first == prefs.bubbleSize }.second) {
-                val cur = sizes.indexOfFirst { it.first == prefs.bubbleSize }
+            Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(prefs.skin).title) {
+                val cur = Skins.all.indexOfFirst { it.id == prefs.skin }.coerceAtLeast(0)
+                Ui.dialog(this).setTitle("Bubble skin").setSingleChoiceItems(Skins.all.map { it.title }.toTypedArray(), cur) { d, i ->
+                    prefs.skin = Skins.all[i].id; d.dismiss(); refreshBubble(); render()
+                }.setNegativeButton("Cancel", null).show()
+            },
+            Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = "${prefs.bubbleSizeDp} dp",
+                sub = "Or pinch the bubble") {
+                val sizes = listOf(52 to "Small", 72 to "Medium", 92 to "Large", 112 to "Extra large")
+                val cur = sizes.indexOfFirst { it.first >= prefs.bubbleSizeDp }.let { if (it < 0) sizes.size - 1 else it }
                 Ui.dialog(this).setTitle("Bubble size").setSingleChoiceItems(sizes.map { it.second }.toTypedArray(), cur) { d, i ->
-                    prefs.bubbleSize = sizes[i].first; d.dismiss(); refreshBubble(); render()
+                    prefs.bubbleSizeDp = sizes[i].first; d.dismiss(); refreshBubble(); render()
+                }.setNegativeButton("Cancel", null).show()
+            },
+            Ui.row(this, R.drawable.ui_bell, "teal", "Sounds", value = mapOf("off" to "Off", "chime" to "Chime", "blip" to "Retro blips")[prefs.sound]) {
+                val opts = listOf("off" to "Off", "chime" to "Chime", "blip" to "Retro blips")
+                val cur = opts.indexOfFirst { it.first == prefs.sound }.coerceAtLeast(0)
+                Ui.dialog(this).setTitle("Start and stop sounds").setSingleChoiceItems(opts.map { it.second }.toTypedArray(), cur) { d, i ->
+                    prefs.sound = opts[i].first; Sounds.start(prefs.sound); d.dismiss(); render()
                 }.setNegativeButton("Cancel", null).show()
             },
             Ui.switchRow(this, R.drawable.ui_zap, "orange", "Vibrate", "A short buzz when it starts and stops listening", prefs.haptics) { on ->
@@ -44,6 +58,21 @@ class SettingsActivity : Screen() {
             else -> "Android only lets accessibility services draw over the keyboard, so in this version the bubble sits just above it. " +
                 "The autotype version can draw it on top of the keyboard."
         }).apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+
+        page.addView(Ui.note(this, "Hold the bubble for a second to move it (it buzzes) and to see the X that turns it off. " +
+                "Pinch it to make it bigger or smaller. Swipe down from the top of the screen to add the Voice Bubble " +
+                "Quick Settings tile.").apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+
+        // AI (optional)
+        page.addView(Ui.sectionTitle(this, "AI (optional)"))
+        page.addView(Ui.group(this, listOf(
+            Ui.row(this, R.drawable.ui_key, "purple", "AI key",
+                value = if (Ai.hasKey(this)) Ai.provider(this) + " ✓" else "Not set") { aiKeyDialog() },
+        )))
+        page.addView(Ui.note(this, "Needed for rewrite, reply suggestions and translating into languages other than English. " +
+                "A free Google Gemini key works (aistudio.google.com → Get API key), or an Anthropic key for Claude. " +
+                "Only the text being rewritten or translated, or the chat on screen for replies, is sent.")
+            .apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
 
         // Permissions
         page.addView(Ui.sectionTitle(this, "Permissions"))
@@ -95,6 +124,19 @@ class SettingsActivity : Screen() {
             .apply { setPaddingRelative(dp(4), dp(10), dp(4), 0) })
 
         Ui.plainScreen(this, page)
+    }
+
+    private fun aiKeyDialog() {
+        val f = Ui.field(this, "AIza… or sk-ant-…").apply {
+            setText(Ai.key(this@SettingsActivity))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        Ui.dialog(this).setTitle("AI key").setView(Ui.padded(this, f))
+            .setPositiveButton("Save") { _, _ -> Ai.setKey(this, f.text.toString()); render() }
+            .setNeutralButton("Get a free key") { _, _ ->
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://aistudio.google.com/apikey"))) }
+            }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun permRow(res: Int, tone: String, label: String, ok: Boolean, optional: Boolean = false, fix: () -> Unit) =

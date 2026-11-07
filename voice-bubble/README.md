@@ -83,6 +83,20 @@ Dictionary → Word packs: **Jujutsu Kaisen**, **Deltarune & Undertale**, **Gen 
 names are only fixed when they sound exactly the same; slang and terms are hints to Whisper only.
 Style → **gen z** writes like a text: no caps, tbh / fr / ngl / idk / rn / omw …
 
+## Commands and helpers
+Say **"out of context"** first to give a command instead of typing:
+"…enable numbers and dates", "…disable filler remover", "…rewrite, make this more polite",
+"…make this shorter", "…translate to Spanish", "…stop translating", "…reply (saying …)", "…undo".
+Helpers (Home → Writing helpers, each switchable): voice commands ("new line", "question mark",
+"scratch that"), emoji by voice ("fire emoji"), filler remover, numbers & dates.
+AI features (rewrite, reply, translation into languages other than English) use your own free
+Gemini key or a Claude key (Settings → AI). Reply suggestions and undo need the autotype version.
+
+## The bubble
+Tap to talk, tap to finish, tap while it writes to cancel. **Hold 1 s** (it buzzes) to move it and
+show the **X** that turns it off. **Pinch** to resize. Skins and sounds in Settings. A **Quick
+Settings tile** turns it on/off. Per-app styles: Style tab → Specific apps.
+
 ## Notes
 - Built for 64-bit ARM phones from roughly 2018 onwards (ARMv8.2).
 - A sentence takes a few seconds to write out on *Accurate*, less on *Fast*.

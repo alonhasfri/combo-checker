@@ -17,7 +17,7 @@ object Whisper {
     private external fun nativeFree(ptr: Long)
     private external fun nativeAbort()
     private external fun nativeTranscribe(
-        ptr: Long, audio: FloatArray, lang: String, prompt: String, threads: Int, audioCtx: Int, beams: Int,
+        ptr: Long, audio: FloatArray, lang: String, prompt: String, threads: Int, audioCtx: Int, beams: Int, translate: Boolean,
     ): ByteArray?
 
 
@@ -46,14 +46,15 @@ object Whisper {
     fun abort() = nativeAbort()
 
     /** 16 kHz mono samples in, text out. Null when it failed or was cancelled. */
-    fun transcribe(modelPath: String, audio: FloatArray, lang: String, prompt: String, extraAccuracy: Boolean = false): String? = synchronized(lock) {
+    fun transcribe(modelPath: String, audio: FloatArray, lang: String, prompt: String, extraAccuracy: Boolean = false,
+                   toEnglish: Boolean = false): String? = synchronized(lock) {
         if (!ensureLoaded(modelPath)) return null
         // Big phone cores do the work; spreading over all 8 (incl. the slow ones) is usually slower.
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         // Extra accuracy: the full window and 3 parallel guesses (slower). Otherwise quick mode.
         val audioCtx = if (extraAccuracy) 1500 else audioCtxFor(audio.size)
         val beams = if (extraAccuracy) 3 else 1
-        val bytes = nativeTranscribe(ctx, audio, lang, prompt, threads, audioCtx, beams) ?: return null
+        val bytes = nativeTranscribe(ctx, audio, lang, prompt, threads, audioCtx, beams, toEnglish) ?: return null
         String(bytes, Charsets.UTF_8)
     }
 }

@@ -35,7 +35,7 @@ Java_com_voicebubble_Whisper_nativeAbort(JNIEnv *, jobject) { g_abort = true; }
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_voicebubble_Whisper_nativeTranscribe(JNIEnv *env, jobject, jlong ptr, jfloatArray jaudio,
                                               jstring jlang, jstring jprompt, jint threads,
-                                              jint audioCtx, jint beams) {
+                                              jint audioCtx, jint beams, jboolean translate) {
     auto *ctx = reinterpret_cast<whisper_context *>(ptr);
     if (!ctx) return nullptr;
     g_abort = false;
@@ -56,7 +56,7 @@ Java_com_voicebubble_Whisper_nativeTranscribe(JNIEnv *env, jobject, jlong ptr, j
     p.print_progress = false;
     p.print_timestamps = false;
     p.print_special = false;
-    p.translate = false;
+    p.translate = translate;   // Whisper's own speech → English translation (on the phone)
     p.no_timestamps = true;
     p.no_context = true;
     p.suppress_blank = true;

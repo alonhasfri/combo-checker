@@ -16,6 +16,10 @@
 
     <!-- Apps whose icons are shown on the Styles screen, and Claude for the import helper. -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
         <package android:name="com.google.android.apps.messaging" />
@@ -95,6 +99,25 @@
         <activity
             android:name=".StylesActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".StartBubbleActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <service
+            android:name=".BubbleTile"
+            android:exported="true"
+            android:icon="@drawable/ic_mic"
+            android:label="Voice Bubble"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
 
         <service
             android:name=".BubbleService"

@@ -80,6 +80,10 @@ android {
             if (hasKeystore) signingConfig = signingConfigs.getByName("app")
         }
     }
+    packaging {
+        resources.excludes += listOf("META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*",
+            "META-INF/INDEX.LIST", "META-INF/versions/9/module-info.class")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -92,5 +96,7 @@ android {
 dependencies {
     // On-device text recognition, for importing words from a screenshot. Free, works offline.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Optional AI features (rewrite, translate, reply) with your own Claude key.
+    implementation("com.anthropic:anthropic-java:3.6.0")
     testImplementation("junit:junit:4.13.2")
 }

@@ -77,9 +77,43 @@ class StylesActivity : Screen() {
             c.setOnClickListener { Styles.set(this, cat, s); render() }
             page.addView(c, Ui.lp(this, 12))
         }
+        // Your own choice for particular apps (beats the category above).
+        page.addView(Ui.sectionTitle(this, "Specific apps"))
+        val overrides = Styles.appStyles(this)
+        val rows = overrides.map { (pkg, st) ->
+            Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = st.title.trimEnd('.', '!')) { pickStyle(pkg) }
+        }.toMutableList<android.view.View>()
+        rows += Ui.row(this, R.drawable.ui_plus, "blue", "Add an app", sub = "Give one app its own style, e.g. Discord → gen z") { pickApp() }
+        page.addView(Ui.group(this, rows))
+
         page.addView(Ui.note(this, "Styles are made for English. In other languages only the caps and punctuation change.")
             .apply { gravity = Gravity.CENTER; setPaddingRelative(0, dp(16), 0, 0) })
 
         Ui.tabScreen(this, page, "style")
+    }
+
+    private fun appName(pkg: String): String =
+        runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+
+    /** Lists the apps on your phone (the ones with an icon in the app drawer). */
+    private fun pickApp() {
+        val launch = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        val apps = packageManager.queryIntentActivities(launch, 0)
+            .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
+            .filter { it.first != packageName }
+            .distinctBy { it.first }
+            .sortedBy { it.second.lowercase() }
+        Ui.dialog(this).setTitle("Choose an app").setItems(apps.map { it.second }.toTypedArray()) { _, i ->
+            pickStyle(apps[i].first)
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun pickStyle(pkg: String) {
+        val styles = Styles.Style.values()
+        val names = styles.map { "${it.title.trimEnd('.', '!')} · ${it.subtitle}" } + "Use the category's style"
+        Ui.dialog(this).setTitle(appName(pkg)).setItems(names.toTypedArray()) { _, i ->
+            Styles.setAppStyle(this, pkg, styles.getOrNull(i))
+            render()
+        }.setNegativeButton("Cancel", null).show()
     }
 }

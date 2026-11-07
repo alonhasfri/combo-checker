@@ -57,6 +57,72 @@ class InsertService : AccessibilityService() {
         return lastEditable?.takeIf { it.refresh() && it.isEditable && it.isFocused }
     }
 
+    /** What the last dictation changed, so it can be undone or replaced (rewrite). */
+    private class LastInsert(val node: AccessibilityNodeInfo, val oldText: String, val newText: String,
+                             val at: Int, val piece: String)
+    private var last: LastInsert? = null
+
+    private fun setText(node: AccessibilityNodeInfo, text: String, cursor: Int): Boolean {
+        val ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        })
+        if (ok) node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, cursor)
+        })
+        return ok
+    }
+
+    /** The text box still holds exactly what the last dictation left in it. */
+    private fun lastStillThere(): LastInsert? {
+        val l = last ?: return null
+        if (!runCatching { l.node.refresh() }.getOrDefault(false)) return null
+        val now = if (l.node.isShowingHintText) "" else l.node.text?.toString().orEmpty()
+        return if (now == l.newText) l else null
+    }
+
+    val canUndo get() = lastStillThere() != null
+
+    /** Takes the last dictation back out. */
+    fun undo(): Boolean {
+        val l = lastStillThere() ?: return false
+        val ok = setText(l.node, l.oldText, l.at)
+        if (ok) last = null
+        return ok
+    }
+
+    /** Swaps the last dictation for a new version (after "rewrite" or translate). */
+    fun replaceLast(text: String): Boolean {
+        val l = lastStillThere() ?: return false
+        val lead = if (l.piece.startsWith(" ")) " " else ""
+        val trail = if (l.piece.endsWith(" ") && l.piece.isNotBlank()) " " else ""
+        val piece = lead + text + trail
+        val newText = l.oldText.substring(0, l.at) + piece + l.newText.substring(l.at + l.piece.length)
+        if (!setText(l.node, newText, l.at + piece.length)) return false
+        last = LastInsert(l.node, l.oldText, newText, l.at, piece)
+        return true
+    }
+
+    /** The text you can see on screen (for reply suggestions), newest last, trimmed to a sensible size. */
+    fun screenText(): String {
+        val lines = ArrayList<String>()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 40 || lines.size > 400) return
+            if (!n.isEditable) {
+                val t = n.text?.toString()?.trim()
+                if (!t.isNullOrEmpty() && t.length > 1) lines += t
+            }
+            for (i in 0 until n.childCount) walk(runCatching { n.getChild(i) }.getOrNull(), depth + 1)
+        }
+        walk(rootInActiveWindow, 0)
+        val sb = StringBuilder()
+        for (l in lines.asReversed()) {
+            if (sb.length + l.length > 2500) break
+            sb.insert(0, l + "\n")
+        }
+        return sb.toString().trim()
+    }
+
     /** Puts [text] at the cursor of the selected text box. False when there is no text box. */
     fun insert(text: String): Boolean {
         val node = focusedEditable() ?: return false
@@ -73,15 +139,8 @@ class InsertService : AccessibilityService() {
         if (after.isNotEmpty() && !after.first().isWhitespace()) piece = "$piece "
         val newText = before + piece + after
 
-        val args = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
-        }
-        if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-            val cursor = before.length + piece.length
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
-                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
-                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, cursor)
-            })
+        if (setText(node, newText, before.length + piece.length)) {
+            last = LastInsert(node, current, newText, before.length, piece)
             return true
         }
         // Fallback for text boxes that refuse "set text": paste instead.

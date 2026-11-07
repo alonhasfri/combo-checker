@@ -88,6 +88,22 @@ class Prefs(private val ctx: Context) {
     var capsLock: Boolean
         get() = p.getBoolean("caps", false)
         set(v) = p.edit().putBoolean("caps", v).apply()
+    /** Translate everything into this language (null = off). "English" works on the phone; others need an AI key. */
+    var translateTo: String?
+        get() = p.getString("translateTo", null)
+        set(v) = p.edit().putString("translateTo", v).apply()
+    /** Bubble look: see Skins. */
+    var skin: String
+        get() = p.getString("skin", "classic")!!
+        set(v) = p.edit().putString("skin", v).apply()
+    /** "off", "chime" or "blip". */
+    var sound: String
+        get() = p.getString("sound", "off")!!
+        set(v) = p.edit().putString("sound", v).apply()
+    /** Bubble size in dp (pinch the bubble to change it). */
+    var bubbleSizeDp: Int
+        get() = p.getInt("bsizeDp", when (bubbleSize) { "s" -> 58; "l" -> 88; else -> 72 })
+        set(v) = p.edit().putInt("bsizeDp", v.coerceIn(44, 124)).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

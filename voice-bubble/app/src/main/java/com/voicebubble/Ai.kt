@@ -1,0 +1,126 @@
+package com.voicebubble
+
+import android.content.Context
+import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.core.JsonValue
+import com.anthropic.errors.AnthropicServiceException
+import com.anthropic.errors.RateLimitException
+import com.anthropic.errors.UnauthorizedException
+import com.anthropic.models.beta.AnthropicBeta
+import com.anthropic.models.beta.messages.BetaOutputConfig
+import com.anthropic.models.beta.messages.MessageCreateParams
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.Duration
+
+/**
+ * Optional AI features (rewrite, translate, reply suggestions) with your own key:
+ * a free Google Gemini key (starts with "AIza", from aistudio.google.com), or an Anthropic key ("sk-ant-").
+ * Only the text being rewritten/translated (or the visible chat, for replies) is sent.
+ */
+object Ai {
+    class Failure(message: String) : Exception(message)
+
+    fun key(c: Context) = c.getSharedPreferences("voice", Context.MODE_PRIVATE).getString("aiKey", "")!!.trim()
+    fun setKey(c: Context, k: String) = c.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putString("aiKey", k.trim()).apply()
+    fun hasKey(c: Context) = key(c).isNotEmpty()
+    fun provider(c: Context) = when {
+        key(c).startsWith("sk-ant") -> "Claude"
+        key(c).isNotEmpty() -> "Gemini"
+        else -> ""
+    }
+
+    fun rewrite(c: Context, text: String, instruction: String): String = ask(c,
+        "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
+            "the language and any names. Reply with only the new text: no quotes, no explanation.",
+        "Instruction: $instruction\n\nText:\n$text")
+
+    fun translate(c: Context, text: String, language: String): String = ask(c,
+        "You translate text someone dictated by voice. Keep the tone, names and emoji. " +
+            "Reply with only the translation: no quotes, no explanation.",
+        "Translate into $language:\n$text")
+
+    /** Three short replies the user could send next in the chat on screen. */
+    fun replies(c: Context, chat: String, instruction: String): List<String> {
+        val out = ask(c,
+            "You help someone answer a chat on their phone. You see the text visible on their screen " +
+                "(it may include buttons and other noise; focus on the conversation). Suggest exactly 3 different " +
+                "short replies they could send next, written as they would text. One per line, no numbering, no quotes.",
+            (if (instruction.isNotBlank()) "What I want to say: $instruction\n\n" else "") + "Screen:\n$chat")
+        return out.lines().map { it.trim().removePrefix("-").removePrefix("•").trim().trim('"') }
+            .filter { it.isNotEmpty() }.take(3)
+    }
+
+    /** Blocking call: run it off the main thread. Throws [Failure] with a message you can show. */
+    private fun ask(c: Context, system: String, user: String): String {
+        val k = key(c)
+        if (k.isEmpty()) throw Failure("Add an AI key first (Settings → AI)")
+        val text = if (k.startsWith("sk-ant")) claude(k, system, user) else gemini(k, system, user)
+        return text.trim().ifEmpty { throw Failure("The AI sent back nothing. Try again") }
+    }
+
+    private fun claude(key: String, system: String, user: String): String {
+        val client = AnthropicOkHttpClient.builder().apiKey(key).timeout(Duration.ofSeconds(60)).build()
+        try {
+            val params = MessageCreateParams.builder()
+                .model("claude-opus-5-5")
+                .maxTokens(4000L)
+                .system(system)
+                .addUserMessage(user)
+                // Short edits don't need deep thinking: low effort keeps it quick and cheap.
+                .outputConfig(BetaOutputConfig.builder().effort(BetaOutputConfig.Effort.LOW).build())
+                // If the model declines, the server retries on a fallback model by itself.
+                .addBeta(AnthropicBeta.of("server-side-fallback-2026-07-01"))
+                .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
+                .build()
+            val msg = client.beta().messages().create(params)
+            if (msg.stopReason().map { it.toString() }.orElse("") == "refusal") throw Failure("Claude declined this one")
+            return msg.content().mapNotNull { b -> b.text().orElse(null)?.text() }.joinToString("")
+        } catch (e: Failure) {
+            throw e
+        } catch (e: UnauthorizedException) {
+            throw Failure("That Claude key doesn't work. Check it in Settings → AI")
+        } catch (e: RateLimitException) {
+            throw Failure("Too many requests right now. Wait a moment and try again")
+        } catch (e: AnthropicServiceException) {
+            throw Failure("Claude error ${e.statusCode()}")
+        } catch (e: Exception) {
+            throw Failure("No connection to Claude. Try again")
+        } finally {
+            runCatching { client.close() }
+        }
+    }
+
+    private fun gemini(key: String, system: String, user: String): String {
+        try {
+            val body = JSONObject()
+                .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
+                .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", user)))))
+            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent")
+                .openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 15000
+            conn.readTimeout = 60000
+            conn.doOutput = true
+            conn.setRequestProperty("content-type", "application/json")
+            conn.setRequestProperty("x-goog-api-key", key)
+            conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            val code = conn.responseCode
+            val text = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+            if (code == 429) throw Failure("Gemini's free limit is reached. Wait a minute and try again")
+            if (code == 400 || code == 403) throw Failure("That Gemini key doesn't work. Check it in Settings → AI")
+            if (code !in 200..299) throw Failure("Gemini error $code")
+            val parts = JSONObject(text).getJSONArray("candidates").getJSONObject(0)
+                .getJSONObject("content").getJSONArray("parts")
+            val sb = StringBuilder()
+            for (i in 0 until parts.length()) sb.append(parts.getJSONObject(i).optString("text"))
+            return sb.toString()
+        } catch (e: Failure) {
+            throw e
+        } catch (e: Exception) {
+            throw Failure("No connection to Gemini. Try again")
+        }
+    }
+}

@@ -57,6 +57,10 @@ class MainActivity : Screen() {
         page.addView(Ui.sectionTitle(this, "Quick settings"))
         page.addView(quickSettings())
 
+        page.addView(Ui.sectionTitle(this, "Writing helpers"))
+        page.addView(helpers())
+        page.addView(commandsCard(), Ui.lp(this, 12))
+
         page.addView(Ui.sectionTitle(this, "Your numbers"))
         page.addView(statsRow())
 
@@ -190,6 +194,45 @@ class MainActivity : Screen() {
         rows += Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
             "Slower, more careful", prefs.extraAccuracy) { on -> prefs.extraAccuracy = on }
         return Ui.group(this, rows)
+    }
+
+    /** The switchable text helpers, plus translation. Each can also be switched by voice. */
+    private fun helpers(): View {
+        val prefs = Prefs(this)
+        val rows = mutableListOf<View>()
+        listOf(
+            Triple(Commands.Feature.COMMANDS, R.drawable.ui_mic to "blue", "\"new line\", \"question mark\", \"scratch that\""),
+            Triple(Commands.Feature.EMOJI, R.drawable.ui_spark to "gold", "\"fire emoji\" → 🔥, \"skull emoji\" → 💀"),
+            Triple(Commands.Feature.FILLER, R.drawable.ui_x to "red", "Removes um, uh and repeated words"),
+            Triple(Commands.Feature.NUMBERS, R.drawable.ui_clock to "green", "\"twenty five percent\" → 25%, \"March third\" → March 3"),
+        ).forEach { (f, look, sub) ->
+            rows += Ui.switchRow(this, look.first, look.second, f.title, sub, Features.isOn(this, f)) { on -> Features.set(this, f, on) }
+        }
+        val langs = listOf("Off", "English", "Hebrew", "Spanish", "French", "German", "Italian", "Portuguese", "Arabic",
+            "Russian", "Japanese", "Korean", "Chinese")
+        rows += Ui.row(this, R.drawable.ui_globe, "purple", "Translate into", value = prefs.translateTo ?: "Off",
+            sub = if (prefs.translateTo.equals("English", true)) "Into English happens on the phone"
+                  else if (prefs.translateTo != null && !Ai.hasKey(this)) "Needs an AI key (Settings → AI)" else null) {
+            val cur = langs.indexOf(prefs.translateTo ?: "Off").coerceAtLeast(0)
+            Ui.dialog(this).setTitle("Translate everything you say into").setSingleChoiceItems(langs.toTypedArray(), cur) { d, i ->
+                prefs.translateTo = if (i == 0) null else langs[i]
+                d.dismiss(); render()
+            }.setNegativeButton("Cancel", null).show()
+        }
+        return Ui.group(this, rows)
+    }
+
+    /** The spoken commands, so you know what to say. */
+    private fun commandsCard(): View = Ui.paddedCard(this).apply {
+        addView(Ui.text(this@MainActivity, "Say \"out of context\" first to give a command", 15f, p.ink))
+        addView(Ui.note(this@MainActivity,
+            "• \"out of context, enable numbers and dates\" / \"…disable filler remover\"\n" +
+            "• \"out of context, rewrite, make this more polite\" / \"…make this shorter\"\n" +
+            "• \"out of context, translate to Spanish\" / \"…stop translating\"\n" +
+            "• \"out of context, reply\" or \"…reply saying I'll be late\"\n" +
+            "• \"out of context, undo\"\n" +
+            "Rewrite, reply and most translations need an AI key (Settings → AI). Reply and undo need the autotype version."
+        ).apply { setPaddingRelative(0, dp(6), 0, 0) })
     }
 
     private fun refreshBubble() {
