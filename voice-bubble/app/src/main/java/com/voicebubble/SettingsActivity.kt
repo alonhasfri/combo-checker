@@ -70,7 +70,7 @@ class SettingsActivity : Screen() {
                 value = if (Ai.hasKey(this)) Ai.provider(this) + " ✓" else "Not set") { aiKeyDialog() },
         )))
         page.addView(Ui.note(this, "Needed for rewrite, reply suggestions and translating into languages other than English. " +
-                "A free Google Gemini key works (aistudio.google.com → Get API key), or an Anthropic key for Claude. " +
+                "Use the same key as Comboed: a free Google Gemini key (AIza…) or OpenRouter key (sk-or-…). An Anthropic key (sk-ant-…) for Claude works too. " +
                 "Only the text being rewritten or translated, or the chat on screen for replies, is sent.")
             .apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
 
@@ -127,7 +127,7 @@ class SettingsActivity : Screen() {
     }
 
     private fun aiKeyDialog() {
-        val f = Ui.field(this, "AIza… or sk-ant-…").apply {
+        val f = Ui.field(this, "AIza…, sk-or-… or sk-ant-…").apply {
             setText(Ai.key(this@SettingsActivity))
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }

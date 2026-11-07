@@ -28,6 +28,7 @@ object Ai {
     fun hasKey(c: Context) = key(c).isNotEmpty()
     fun provider(c: Context) = when {
         key(c).startsWith("sk-ant") -> "Claude"
+        key(c).startsWith("sk-or-") -> "OpenRouter"
         key(c).isNotEmpty() -> "Gemini"
         else -> ""
     }
@@ -57,7 +58,11 @@ object Ai {
     private fun ask(c: Context, system: String, user: String): String {
         val k = key(c)
         if (k.isEmpty()) throw Failure("Add an AI key first (Settings → AI)")
-        val text = if (k.startsWith("sk-ant")) claude(k, system, user) else gemini(k, system, user)
+        val text = when {
+            k.startsWith("sk-ant") -> claude(k, system, user)
+            k.startsWith("sk-or-") -> openRouter(k, system, user)
+            else -> gemini(k, system, user)
+        }
         return text.trim().ifEmpty { throw Failure("The AI sent back nothing. Try again") }
     }
 
@@ -90,6 +95,35 @@ object Ai {
             throw Failure("No connection to Claude. Try again")
         } finally {
             runCatching { client.close() }
+        }
+    }
+
+    /** OpenRouter (the other free option Comboed supports): OpenAI-style chat API, free model. */
+    private fun openRouter(key: String, system: String, user: String): String {
+        try {
+            val body = JSONObject()
+                .put("model", "nvidia/nemotron-3.5-super-vl:free")
+                .put("messages", JSONArray()
+                    .put(JSONObject().put("role", "system").put("content", system))
+                    .put(JSONObject().put("role", "user").put("content", user)))
+            val conn = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 15000
+            conn.readTimeout = 60000
+            conn.doOutput = true
+            conn.setRequestProperty("content-type", "application/json")
+            conn.setRequestProperty("authorization", "Bearer $key")
+            conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            val code = conn.responseCode
+            val text = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+            if (code == 429) throw Failure("OpenRouter's free limit is reached. Wait a minute and try again")
+            if (code == 401 || code == 403) throw Failure("That OpenRouter key doesn't work. Check it in Settings → AI")
+            if (code !in 200..299) throw Failure("OpenRouter error $code")
+            return JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content")
+        } catch (e: Failure) {
+            throw e
+        } catch (e: Exception) {
+            throw Failure("No connection to OpenRouter. Try again")
         }
     }
 
