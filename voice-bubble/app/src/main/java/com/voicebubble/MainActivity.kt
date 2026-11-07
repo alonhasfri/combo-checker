@@ -21,7 +21,7 @@ class MainActivity : Screen() {
     private var statusLine: TextView? = null
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
-        override fun run() { updateStatusLine(); ticker.postDelayed(this, 700) }
+        override fun run() { verifyKeyboard(); updateStatusLine(); ticker.postDelayed(this, 700) }
     }
 
     override fun onResume() {
@@ -53,6 +53,9 @@ class MainActivity : Screen() {
         if (missing.any { it.required } || (missing.isNotEmpty() && Stats.total(this) == 0)) {
             page.addView(setupCard(steps), Ui.lp(this, 14))
         }
+
+        page.addView(Ui.sectionTitle(this, "Quick settings"))
+        page.addView(quickSettings())
 
         page.addView(Ui.sectionTitle(this, "Your numbers"))
         page.addView(statsRow())
@@ -120,10 +123,73 @@ class MainActivity : Screen() {
         v.text = when {
             !BubbleService.running -> if (Setup.readyToStart(this)) "Tap the button to show the bubble" else "A few steps left (see below)"
             !prefs.onlyWithKeyboard -> "Always on screen"
-            BubbleService.keyboardNow -> "Keyboard open · bubble showing"
-            prefs.keyboardSeen -> "Shows up while you type"
-            else -> "Stays on screen until it has seen your keyboard once"
+            InsertService.isOn || (prefs.keyboardVerified && !prefs.keyboardBroken) ->
+                if (BubbleService.keyboardNow) "Keyboard open · bubble showing" else "Hidden until a keyboard opens"
+            prefs.keyboardBroken -> "Always on screen (keyboard detection doesn't work on this phone)"
+            else -> "On screen · tap the Try it box once to finish setting up \"only while typing\""
         }
+    }
+
+    // ----- keyboard check -----
+    private var ownKeyboardTicks = 0
+
+    /**
+     * Checks the bubble's keyboard detection against this screen's own keyboard, which Android
+     * reports reliably. Agrees → hiding is allowed. Keyboard clearly open but not detected → the
+     * bubble stays on screen for good, so it can never get stuck hidden.
+     */
+    private fun verifyKeyboard() {
+        if (android.os.Build.VERSION.SDK_INT < 30 || !BubbleService.running) return
+        val ownOpen = window.decorView.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+        if (!ownOpen) { ownKeyboardTicks = 0; return }
+        ownKeyboardTicks++
+        val prefs = Prefs(this)
+        if (BubbleService.keyboardNow) {
+            if (!prefs.keyboardVerified || prefs.keyboardBroken) {
+                prefs.keyboardVerified = true; prefs.keyboardBroken = false
+                toast("Keyboard detection works ✓ The bubble will hide when you're not typing")
+            }
+        } else if (ownKeyboardTicks >= 4 && !prefs.keyboardBroken) {
+            prefs.keyboardBroken = true; prefs.keyboardVerified = false
+            toast("Keyboard detection doesn't work on this phone, so the bubble will stay on screen")
+        }
+    }
+
+    // ----- quick settings (the important ones; the rest is under the gear) -----
+
+    private fun quickSettings(): View {
+        val prefs = Prefs(this)
+        val model = Models.byId(prefs.modelId)
+        val rows = mutableListOf<View>(
+            Ui.row(this, R.drawable.ui_cpu, "purple", "Speech model",
+                value = model.title.substringBefore(" (") + if (Setup.modelReady(this)) "" else " · download",
+                valueColor = if (Setup.modelReady(this)) null else p.danger) {
+                startActivity(Intent(this, ModelActivity::class.java))
+            },
+        )
+        if (!model.englishOnly) rows += Ui.row(this, R.drawable.ui_globe, "teal", "Language",
+            value = Langs.all.firstOrNull { it.first == prefs.lang }?.second) {
+            val names = Langs.all.map { it.second }.toTypedArray()
+            val cur = Langs.all.indexOfFirst { it.first == prefs.lang }.coerceAtLeast(0)
+            Ui.dialog(this).setTitle("Language you speak").setSingleChoiceItems(names, cur) { d, i ->
+                prefs.lang = Langs.all[i].first; d.dismiss(); render()
+            }.setNegativeButton("Cancel", null).show()
+        }
+        rows += Ui.switchRow(this, R.drawable.ui_layout, "blue", "Only while typing",
+            "Show the bubble only when a keyboard is open", prefs.onlyWithKeyboard) { on ->
+            prefs.onlyWithKeyboard = on; refreshBubble(); updateStatusLine()
+        }
+        rows += Ui.switchRow(this, R.drawable.ui_upload, "teal", "Sit right above the keyboard",
+            "Drag it to set how high", prefs.dockAboveKeyboard) { on ->
+            prefs.dockAboveKeyboard = on; prefs.dockLift = 0; refreshBubble()
+        }
+        rows += Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
+            "Slower, more careful", prefs.extraAccuracy) { on -> prefs.extraAccuracy = on }
+        return Ui.group(this, rows)
+    }
+
+    private fun refreshBubble() {
+        if (BubbleService.running) startForegroundService(Intent(this, BubbleService::class.java))
     }
 
     private fun toggleBubble() {

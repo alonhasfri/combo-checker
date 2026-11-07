@@ -2,7 +2,7 @@ package com.voicebubble
 
 import android.content.Intent
 
-/** Settings (gear): speech, bubble, permissions, appearance, privacy, about. */
+/** Settings (gear): the less-used options. The important ones are on Home (Quick settings). */
 class SettingsActivity : Screen() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) = render()
@@ -12,51 +12,10 @@ class SettingsActivity : Screen() {
         val page = Ui.page(this)
         page.addView(Ui.backHeader(this, "Settings"))
 
-        // Speech
-        page.addView(Ui.sectionTitle(this, "Speech"))
-        val model = Models.byId(prefs.modelId)
-        page.addView(Ui.group(this, listOf(
-            Ui.row(this, R.drawable.ui_cpu, "purple", "Speech model",
-                value = model.title.substringBefore(" (") + if (Setup.modelReady(this)) "" else " · not downloaded",
-                valueColor = if (Setup.modelReady(this)) null else p.danger) {
-                startActivity(Intent(this, ModelActivity::class.java))
-            },
-            Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
-                "Slower: listens to the whole window and tries several guesses", prefs.extraAccuracy) { on ->
-                prefs.extraAccuracy = on
-            },
-            Ui.row(this, R.drawable.ui_globe, "teal", "Language",
-                value = if (model.englishOnly) "English (set by model)" else Langs.all.firstOrNull { it.first == prefs.lang }?.second) {
-                if (model.englishOnly) {
-                    toast("This model only does English. Pick an \"all languages\" model to change the language.")
-                    return@row
-                }
-                val names = Langs.all.map { it.second }.toTypedArray()
-                val cur = Langs.all.indexOfFirst { it.first == prefs.lang }.coerceAtLeast(0)
-                Ui.dialog(this).setTitle("Language you speak").setSingleChoiceItems(names, cur) { d, i ->
-                    prefs.lang = Langs.all[i].first; d.dismiss(); render()
-                }.setNegativeButton("Cancel", null).show()
-            },
-        )))
-        page.addView(Ui.note(this, "English models are the most accurate for English. With an \"all languages\" model, " +
-                "choose your language: auto-detect often guesses wrong on short sentences.").apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
-
         // Bubble
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
-        val kbSub = when {
-            !prefs.onlyWithKeyboard -> "Off: always on screen"
-            prefs.keyboardSeen -> "Keyboard detection works on this phone"
-            else -> "Stays on screen until it has seen your keyboard once"
-        }
         val sizes = listOf("s" to "Small", "m" to "Medium", "l" to "Large")
         page.addView(Ui.group(this, listOf(
-            Ui.switchRow(this, R.drawable.ui_layout, "blue", "Only while typing", kbSub, prefs.onlyWithKeyboard) { on ->
-                prefs.onlyWithKeyboard = on; refreshBubble(); render()
-            },
-            Ui.switchRow(this, R.drawable.ui_upload, "teal", "Sit right above the keyboard",
-                "While typing it waits just above the keys. Drag it to set how high.", prefs.dockAboveKeyboard) { on ->
-                prefs.dockAboveKeyboard = on; prefs.dockLift = 0; refreshBubble()
-            },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = sizes.first { it.first == prefs.bubbleSize }.second) {
                 val cur = sizes.indexOfFirst { it.first == prefs.bubbleSize }
                 Ui.dialog(this).setTitle("Bubble size").setSingleChoiceItems(sizes.map { it.second }.toTypedArray(), cur) { d, i ->
@@ -68,11 +27,13 @@ class SettingsActivity : Screen() {
             },
             Ui.row(this, R.drawable.ui_reset, "gray", "Reset bubble position", chevron = false) {
                 prefs.bubbleX = -1; prefs.bubbleY = -1; prefs.dockLift = 0
+                // Also test keyboard detection again.
+                prefs.keyboardVerified = false; prefs.keyboardBroken = false
                 if (BubbleService.running) {
                     startService(Intent(this, BubbleService::class.java).setAction(BubbleService.ACTION_STOP))
                     window.decorView.postDelayed({ startForegroundService(Intent(this, BubbleService::class.java)) }, 400)
                 }
-                toast("Moved back to the right edge")
+                toast("Moved back to the right edge. Tap Home's Try it box to re-check the keyboard.")
             },
         )))
 

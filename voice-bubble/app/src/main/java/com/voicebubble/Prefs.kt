@@ -36,10 +36,12 @@ object Langs {
     )
 }
 
-class Prefs(ctx: Context) {
+class Prefs(private val ctx: Context) {
     private val p = ctx.getSharedPreferences("voice", Context.MODE_PRIVATE)
+    /** Never picked: use a model that's already downloaded (older builds' default), else the recommended one. */
     var modelId: String
-        get() = p.getString("model", "small.en")!!
+        get() = p.getString("model", null)
+            ?: Models.all.firstOrNull { Models.isDownloaded(ctx, it) }?.id ?: Models.all[0].id
         set(v) = p.edit().putString("model", v).apply()
     /** Slower but more careful: full 30 s window and several guesses. */
     var extraAccuracy: Boolean
@@ -53,6 +55,17 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("onlyKb", true)
         set(v) = p.edit().putBoolean("onlyKb", v).apply()
     /** Set once a keyboard has been detected on this phone: proof that hiding the bubble is safe. */
+    /**
+     * Keyboard detection confirmed on this phone: the app saw its own keyboard open and the bubble's
+     * detector agreed (or the accessibility service is on). Only then may the bubble hide.
+     */
+    var keyboardVerified: Boolean
+        get() = p.getBoolean("kbVerified", false)
+        set(v) = p.edit().putBoolean("kbVerified", v).apply()
+    /** Detection was tested and didn't work: the bubble always shows. */
+    var keyboardBroken: Boolean
+        get() = p.getBoolean("kbBroken", false)
+        set(v) = p.edit().putBoolean("kbBroken", v).apply()
     var keyboardSeen: Boolean
         get() = p.getBoolean("kbSeen", false)
         set(v) = p.edit().putBoolean("kbSeen", v).apply()

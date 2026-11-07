@@ -379,7 +379,10 @@ class BubbleService : Service() {
         val busy = recorder.isRecording || working
         // Until a keyboard has been detected at least once, keep the bubble on screen:
         // if detection doesn't work on this phone, a hidden bubble would be unusable.
-        val show = !prefs.onlyWithKeyboard || !prefs.keyboardSeen || keyboardOpen || busy
+        // Hide only when keyboard detection is confirmed to work on this phone (the accessibility
+        // service sees the keyboard directly; otherwise Home verifies it). Otherwise always show.
+        val verified = InsertService.isOn || (prefs.keyboardVerified && !prefs.keyboardBroken)
+        val show = !prefs.onlyWithKeyboard || !verified || keyboardOpen || busy
         val vis = if (show) View.VISIBLE else View.GONE
         if (v.visibility != vis) v.visibility = vis
 
