@@ -1,0 +1,54 @@
+name: Build Voice Bubble APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "voice-bubble/**"
+      - ".github/workflows/build-voice-bubble.yml"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+      - name: Install NDK and CMake
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;26.3.11579264" "cmake;3.22.1" > /dev/null
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.7
+      - name: Restore signing key (if configured)
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_B64" ]; then
+            echo "$SIGNING_KEYSTORE_B64" | base64 -d > voice-bubble/app/voice.keystore
+            echo "Signing key restored."
+          else
+            echo "No SIGNING_KEYSTORE_B64 secret set; building with debug signing."
+          fi
+      - name: Build
+        working-directory: voice-bubble
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: voice-${{ github.run_number }}
+        run: gradle testBasicDebugUnitTest assembleBasicDebug assembleAutotypeDebug --no-daemon
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp voice-bubble/app/build/outputs/apk/basic/debug/app-basic-debug.apk voice-bubble.apk
+          cp voice-bubble/app/build/outputs/apk/autotype/debug/app-autotype-debug.apk voice-bubble-autotype.apk
+          # Never marked "latest": that release is what Comboed's update check points to.
+          gh release create "voice-bubble-${{ github.run_number }}" voice-bubble.apk voice-bubble-autotype.apk \
+            --target "${{ github.sha }}" \
+            --title "Voice Bubble build ${{ github.run_number }} (${{ github.ref_name }})" \
+            --notes "Voice Bubble: floating microphone, on-device speech to text. On your phone, tap voice-bubble.apk to install (copies the text for you to paste). voice-bubble-autotype.apk also types the text in for you, but Play Protect blocks installing it from a browser." \
+            --prerelease --latest=false
