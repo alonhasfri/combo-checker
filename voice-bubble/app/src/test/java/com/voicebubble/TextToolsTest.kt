@@ -24,7 +24,12 @@ class TextToolsTest {
         assertEquals("That was funny 💀", TextTools.emoji("That was funny skull emoji"))
         assertEquals("I love you ❤️.", TextTools.emoji("I love you heart emoji."))
         assertEquals("🔥", TextTools.emoji("Fire emoji"))
-        assertEquals("banana emoji", TextTools.emoji("banana emoji"))
+        assertEquals("I'm so done 🥀", TextTools.emoji("I'm so done wilted rose emoji"))
+        assertEquals("✌️", TextTools.emoji("peace sign emoji"))
+        assertEquals("Later ✌️", TextTools.emoji("Later peace emoji"))
+        assertEquals("super-cute 🐱", TextTools.emoji("super-cute cat emoji"))
+        assertEquals("🦖", TextTools.emoji("t-rex emoji"))
+        assertEquals("unicorn horn emoji", TextTools.emoji("unicorn horn emoji"))
     }
 
     @Test fun fillers() {

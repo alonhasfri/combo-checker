@@ -59,18 +59,94 @@ object TextTools {
         "salute" to "🫡", "sweat" to "😅", "grin" to "😁", "devil" to "😈", "poop" to "💩", "money" to "💰",
         "sleeping" to "😴", "sick" to "🤢", "mind blown" to "🤯", "hug" to "🤗", "cake" to "🎂", "gift" to "🎁",
         "sun" to "☀️", "moon" to "🌙", "rainbow" to "🌈", "dog" to "🐶", "cat" to "🐱", "goat" to "🐐",
+        // Flowers and hearts
+        "rose" to "🌹", "wilted rose" to "🥀", "wilting rose" to "🥀", "dead rose" to "🥀", "dying rose" to "🥀",
+        "wilted flower" to "🥀", "sad rose" to "🥀", "flower" to "🌸", "cherry blossom" to "🌸", "sunflower" to "🌻",
+        "tulip" to "🌷", "bouquet" to "💐", "orange heart" to "🧡", "yellow heart" to "💛", "green heart" to "💚",
+        "blue heart" to "💙", "purple heart" to "💜", "black heart" to "🖤", "white heart" to "🤍", "pink heart" to "🩷",
+        "sparkling heart" to "💖", "two hearts" to "💕", "heart on fire" to "❤️‍🔥", "mending heart" to "❤️‍🩹",
+        // Hands
+        "peace" to "✌️", "peace sign" to "✌️", "victory" to "✌️", "victory hand" to "✌️", "wave" to "👋",
+        "waving" to "👋", "raised hand" to "✋", "high five" to "🙌", "raised hands" to "🙌", "fist bump" to "👊",
+        "fist" to "✊", "crossed fingers" to "🤞", "fingers crossed" to "🤞", "rock on" to "🤘", "call me" to "🤙",
+        "pointing up" to "☝️", "point up" to "👆", "point down" to "👇", "point left" to "👈", "point right" to "👉",
+        "middle finger" to "🖕", "handshake" to "🤝", "writing hand" to "✍️", "pinch" to "🤏", "heart hands" to "🫶",
+        "open hands" to "👐", "folded hands" to "🙏", "nail polish" to "💅", "selfie" to "🤳",
+        // Faces
+        "smiling face" to "☺️", "big smile" to "😃", "grinning" to "😀", "joy" to "😂", "rofl" to "🤣",
+        "rolling on the floor" to "🤣", "upside down" to "🙃", "upside down face" to "🙃", "blush" to "😊",
+        "blushing" to "😊", "halo" to "😇", "angel" to "😇", "in love" to "🥰", "smiling hearts" to "🥰",
+        "star struck" to "🤩", "starstruck" to "🤩", "kissing" to "😗", "yum" to "😋", "tongue" to "😛",
+        "tongue out" to "😛", "crazy" to "🤪", "zany" to "🤪", "money face" to "🤑", "shush" to "🤫",
+        "shushing" to "🤫", "zipper mouth" to "🤐", "raised eyebrow" to "🤨", "neutral" to "😐",
+        "expressionless" to "😑", "no mouth" to "😶", "smirk" to "😏", "unamused" to "😒", "grimace" to "😬",
+        "grimacing" to "😬", "lying" to "🤥", "relieved" to "😌", "pensive" to "😔", "sleepy" to "😪",
+        "drooling" to "🤤", "mask" to "😷", "hot" to "🥵", "cold" to "🥶", "freezing" to "🥶", "dizzy" to "😵",
+        "exploding head" to "🤯", "cowboy" to "🤠", "partying" to "🥳", "party face" to "🥳", "disguise" to "🥸",
+        "confused" to "😕", "worried" to "😟", "frowning" to "☹️", "surprised" to "😯", "astonished" to "😲",
+        "flushed" to "😳", "anxious" to "😰", "scared" to "😨", "fearful" to "😨", "screaming" to "😱",
+        "scream" to "😱", "disappointed" to "😞", "tired" to "😫", "weary" to "😩", "yawn" to "🥱",
+        "yawning" to "🥱", "triumph" to "😤", "huffing" to "😤", "rage" to "😡", "pouting" to "😡",
+        "cursing" to "🤬", "swearing" to "🤬", "skull and crossbones" to "☠️", "alien" to "👽", "robot" to "🤖",
+        "jack o lantern" to "🎃", "pumpkin" to "🎃", "smiling cat" to "😸", "holding back tears" to "🥹",
+        "face holding back tears" to "🥹", "saluting" to "🫡", "dotted face" to "🫥", "shaking face" to "🫨",
+        "peeking" to "🫣", "hand over mouth" to "🤭", "giggle" to "🤭", "yikes" to "😬", "side eye" to "👀",
+        "dead" to "💀", "crying face" to "😢", "loudly crying" to "😭", "sweat smile" to "😅", "nervous" to "😅",
+        // Things and symbols
+        "crown" to "👑", "gem" to "💎", "diamond" to "💎", "bomb" to "💣", "collision" to "💥", "boom" to "💥",
+        "lightning" to "⚡", "zap" to "⚡", "snowflake" to "❄️", "droplet" to "💧", "water" to "💧", "ice" to "🧊",
+        "trophy" to "🏆", "medal" to "🏅", "gold medal" to "🥇", "target" to "🎯", "bullseye" to "🎯",
+        "game" to "🎮", "video game" to "🎮", "controller" to "🎮", "music" to "🎵", "headphones" to "🎧",
+        "microphone" to "🎤", "camera" to "📷", "phone" to "📱", "laptop" to "💻", "book" to "📖", "books" to "📚",
+        "pencil" to "✏️", "memo" to "📝", "pin" to "📌", "lock" to "🔒", "key" to "🔑", "bell" to "🔔",
+        "light bulb" to "💡", "idea" to "💡", "warning" to "⚠️", "stop sign" to "🛑", "no entry" to "⛔",
+        "question" to "❓", "exclamation" to "❗", "plus" to "➕", "infinity" to "♾️", "recycle" to "♻️",
+        "sparkle" to "✨", "glowing star" to "🌟", "shooting star" to "🌠", "dizzy star" to "💫", "comet" to "☄️",
+        "speech bubble" to "💬", "thought bubble" to "💭", "zzz" to "💤", "sleep" to "💤", "balloon" to "🎈",
+        "confetti" to "🎊", "fireworks" to "🎆", "christmas tree" to "🎄", "candle" to "🕯️", "hourglass" to "⏳",
+        "clock" to "⏰", "alarm" to "⏰", "calendar" to "📅", "chart" to "📈", "chart up" to "📈", "chart down" to "📉",
+        "dollar" to "💵", "credit card" to "💳", "shopping" to "🛍️", "house" to "🏠", "car" to "🚗",
+        "plane" to "✈️", "airplane" to "✈️", "earth" to "🌍", "globe" to "🌍", "mountain" to "⛰️", "beach" to "🏖️",
+        "volcano" to "🌋", "cloud" to "☁️", "rain" to "🌧️", "umbrella" to "☂️", "snowman" to "⛄",
+        "heavy check" to "✔️", "red x" to "❌", "red circle" to "🔴", "green circle" to "🟢", "flag" to "🚩",
+        "red flag" to "🚩", "white flag" to "🏳️", "pirate flag" to "🏴‍☠️", "eye" to "👁️", "brain" to "🧠",
+        "lips" to "👄", "biting lip" to "🫦", "tooth" to "🦷", "bone" to "🦴", "footprints" to "👣",
+        // Food
+        "pizza" to "🍕", "burger" to "🍔", "hamburger" to "🍔", "fries" to "🍟", "hot dog" to "🌭", "taco" to "🌮",
+        "sushi" to "🍣", "ramen" to "🍜", "noodles" to "🍜", "rice" to "🍚", "bread" to "🍞", "egg" to "🥚",
+        "cookie" to "🍪", "donut" to "🍩", "ice cream" to "🍦", "chocolate" to "🍫", "candy" to "🍬",
+        "popcorn" to "🍿", "coffee" to "☕", "tea" to "🍵", "beer" to "🍺", "cheers" to "🥂", "wine" to "🍷",
+        "apple" to "🍎", "banana" to "🍌", "strawberry" to "🍓", "cherry" to "🍒", "peach" to "🍑",
+        "eggplant" to "🍆", "avocado" to "🥑", "lemon" to "🍋", "watermelon" to "🍉", "grapes" to "🍇",
+        "salt" to "🧂", "cheese" to "🧀", "milk" to "🥛",
+        // Animals
+        "fox" to "🦊", "bear" to "🐻", "panda" to "🐼", "frog" to "🐸", "monkey" to "🐒", "see no evil" to "🙈",
+        "hear no evil" to "🙉", "speak no evil" to "🙊", "lion" to "🦁", "tiger" to "🐯", "horse" to "🐴",
+        "unicorn" to "🦄", "pig" to "🐷", "cow" to "🐮", "chicken" to "🐔", "penguin" to "🐧", "bird" to "🐦",
+        "eagle" to "🦅", "owl" to "🦉", "duck" to "🦆", "snake" to "🐍", "turtle" to "🐢", "dragon" to "🐉",
+        "dinosaur" to "🦖", "t rex" to "🦖", "whale" to "🐳", "dolphin" to "🐬", "fish" to "🐟", "shark" to "🦈",
+        "octopus" to "🐙", "butterfly" to "🦋", "bee" to "🐝", "bug" to "🐛", "spider" to "🕷️", "snail" to "🐌",
+        "rabbit" to "🐰", "bunny" to "🐰", "mouse" to "🐭", "hamster" to "🐹", "wolf" to "🐺", "sloth" to "🦥",
+        "crab" to "🦀", "shrimp" to "🦐", "rat" to "🐀", "worm" to "🪱",
+        // Sports
+        "soccer" to "⚽", "football" to "⚽", "basketball" to "🏀", "tennis" to "🎾", "running" to "🏃",
+        "weightlifting" to "🏋️", "swimming" to "🏊", "bicycle" to "🚲", "boxing" to "🥊", "dice" to "🎲",
     )
-    private val emojiRe = Regex("\\b(?:(\\p{L}+(?:\\s+\\p{L}+)?)|(100))\\s+emojis?\\b", RegexOption.IGNORE_CASE)
+    // Up to four words before "emoji" ("face holding back tears emoji"); "t-rex" and "jack-o-lantern" too.
+    private val emojiRe = Regex("\\b(?:([\\p{L}'-]+(?:\\s+[\\p{L}'-]+){0,3})|(100))\\s+emojis?\\b", RegexOption.IGNORE_CASE)
 
-    /** "fire emoji" → 🔥 ("big fire emoji" tries the last word too). */
+    /** "fire emoji" → 🔥. The longest name that matches wins; words before it stay ("big fire emoji" → "big 🔥"). */
     fun emoji(text: String): String = emojiRe.replace(text) { m ->
-        val phrase = (m.groupValues[1].ifEmpty { m.groupValues[2] }).lowercase()
-        val last = phrase.substringAfterLast(' ')
-        when {
-            emoji[phrase] != null -> emoji.getValue(phrase)
-            emoji[last] != null -> phrase.substringBeforeLast(' ', "").let { if (it.isEmpty()) "" else "$it " } + emoji.getValue(last)
-            else -> m.value
+        val original = m.groupValues[1].ifEmpty { m.groupValues[2] }.split(Regex("\\s+"))
+        val words = original.map { it.lowercase().replace('-', ' ') }
+        for (start in words.indices) {
+            val name = words.subList(start, words.size).joinToString(" ")
+            val e = emoji[name] ?: continue
+            // Keep the original spelling of the words that come before the emoji name.
+            val keep = original.take(start).joinToString(" ")
+            return@replace if (keep.isEmpty()) e else "$keep $e"
         }
+        m.value
     }.replace(Regex("\\s+([,.!?])(?=\\s|$)"), "$1")
 
     // ---------------- filler words ----------------
