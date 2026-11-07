@@ -534,12 +534,21 @@ class BubbleService : Service() {
         Thread {
             val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt, extra, whisperToEnglish) }.getOrNull()
             val said = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }
-            val cmd = said?.let { Commands.parse(it) }
-            if (cmd != null) {
+            val split = said?.let { Commands.split(it) }
+            if (split != null) {
+                // Text said before the command gets the usual treatment first.
+                val before = split.before.takeIf { it.isNotEmpty() }?.let { process(it, style, cat) }
                 main.post {
                     working = false
                     setState(BubbleView.State.IDLE)
-                    if (cancelled) cancelled = false else runCommand(cmd)
+                    if (cancelled) { cancelled = false; return@post }
+                    val cmd = split.cmd
+                    when {
+                        before == null -> runCommand(cmd)
+                        // "…text…, out of context, make this longer": rewrite what you just said, then type it.
+                        cmd is Commands.Cmd.Rewrite -> rewrite(cmd.instruction, before)
+                        else -> { deliver(before); Stats.record(this, before, seconds, app); runCommand(cmd) }
+                    }
                 }
                 return@Thread
             }
@@ -631,10 +640,19 @@ class BubbleService : Service() {
     }
 
     /** "rewrite, make this more polite": the AI rewrites your last dictation and swaps it in. */
-    private fun rewrite(instruction: String) {
-        val text = lastText ?: run { toast("Dictate something first, then ask to rewrite it"); return }
-        if (!Ai.hasKey(this)) { toast("Rewriting needs an AI key (Settings → AI)"); return }
-        aiJob({ Ai.rewrite(this, text, instruction) }) { out ->
+    /**
+     * "rewrite, make this more polite". With [fresh] text (said in the same breath) it rewrites that and
+     * types the result; otherwise it rewrites your last dictation and swaps it in.
+     */
+    private fun rewrite(instruction: String, fresh: String? = null) {
+        val text = fresh ?: lastText ?: run { toast("Dictate something first, then ask to rewrite it"); return }
+        if (!Ai.hasKey(this)) {
+            toast("Rewriting needs an AI key (Settings → AI)")
+            fresh?.let { deliver(it) }   // don't lose what you said
+            return
+        }
+        aiJob({ Ai.rewrite(this, text, instruction) }, onFail = { fresh?.let { deliver(it) } }) { out ->
+            if (fresh != null) { deliver(out); return@aiJob }
             lastText = out
             if (InsertService.instance?.replaceLast(out) == true) { buzz(15); toast("Rewritten ✓"); showUndo() }
             else { copyOut(out); toast("Rewritten text copied: paste it over the old one") }
@@ -657,7 +675,7 @@ class BubbleService : Service() {
     }
 
     /** Runs an AI request with the bubble spinning; tap the bubble to cancel. */
-    private fun aiJob(work: () -> String, done: (String) -> Unit) {
+    private fun aiJob(work: () -> String, onFail: (() -> Unit)? = null, done: (String) -> Unit) {
         cancelled = false
         working = true
         setState(BubbleView.State.WORKING)
@@ -667,7 +685,7 @@ class BubbleService : Service() {
                 working = false
                 setState(BubbleView.State.IDLE)
                 if (cancelled) { cancelled = false; return@post }
-                result.onSuccess(done).onFailure { toast(it.message ?: "Something went wrong") }
+                result.onSuccess(done).onFailure { toast(it.message ?: "Something went wrong"); onFail?.invoke() }
             }
         }.start()
     }

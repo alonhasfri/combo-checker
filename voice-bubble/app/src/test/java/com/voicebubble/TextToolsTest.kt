@@ -59,6 +59,16 @@ class CommandsTest {
         assertEquals(Cmd.Undo, Commands.parse("Out of contacts, undo."))
     }
 
+    @Test fun commandAfterText() {
+        assertEquals(Commands.Split("Could I get a Big Mac", Cmd.Rewrite("make this longer, give me five fries")),
+            Commands.split("Could I get a Big Mac, out of context, make this longer, give me five fries."))
+        assertEquals(Commands.Split("See you soon", Cmd.Toggle(Feature.EMOJI, true)),
+            Commands.split("See you soon. Out of context, enable emoji."))
+        assertEquals(Commands.Split("", Cmd.Undo), Commands.split("out of context, undo"))
+        assertNull(Commands.split("That quote was out of context."))
+        assertNull(Commands.split("They took it out of context and ran with it"))
+    }
+
     @Test fun normalDictationIsNotACommand() {
         assertNull(Commands.parse("I was out of context yesterday"))
         assertNull(Commands.parse("Hello there"))

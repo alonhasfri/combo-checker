@@ -40,10 +40,32 @@ object Commands {
 
     private fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}' ]+"), " ").replace(Regex("\\s+"), " ").trim()
 
-    /** Null when it's normal dictation. */
+    /** "…text…, out of context, make this longer": the phrase can also come after what you dictated. */
+    private val triggerAnywhere = Regex("(?:^|[\\s,.!?;:]+)(?:hey\\s+)?out\\s+of\\s+(?:context|contacts|contexts|content|contest)\\b[\\s,.:;!-]*",
+        RegexOption.IGNORE_CASE)
+
+    /** A command, plus what you dictated before it (empty when the recording starts with the command). */
+    data class Split(val before: String, val cmd: Cmd)
+
+    /**
+     * Finds a command anywhere in the dictation. Said after some text, it must be a real command,
+     * so a normal sentence like "that quote was out of context" is still typed as text.
+     */
+    fun split(text: String): Split? {
+        val m = triggerAnywhere.find(text) ?: return null
+        val before = text.substring(0, m.range.first).trim().trimEnd(',', ';', ':', '-').trim()
+        val cmd = parseRest(text.substring(m.range.last + 1).trim())
+        if (before.isNotEmpty() && cmd is Cmd.Unknown) return null
+        return Split(before, cmd)
+    }
+
+    /** Null when it's normal dictation (command at the start only). */
     fun parse(text: String): Cmd? {
         val m = trigger.find(text) ?: return null
-        val rest = text.substring(m.range.last + 1).trim()
+        return parseRest(text.substring(m.range.last + 1).trim())
+    }
+
+    private fun parseRest(rest: String): Cmd {
         val n = norm(rest)
 
         Regex("^(?:please )?(enable|turn on|switch on|activate|start|disable|turn off|switch off|deactivate|stop) (?:the )?(.+?)(?: mode| pack| words)?$")
