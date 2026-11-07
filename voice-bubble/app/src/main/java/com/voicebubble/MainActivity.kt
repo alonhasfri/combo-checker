@@ -112,7 +112,7 @@ class MainActivity : Screen() {
             if (on) R.drawable.ui_x else R.drawable.ui_play,
             if (on) 0x33FFFFFF else 0xFFFFFFFF.toInt(), if (on) 0xFFFFFFFF.toInt() else 0xFF2B47B8.toInt(), heightDp = 46) { toggleBubble() },
             Ui.lp(this, 16))
-        card.addView(Ui.text(this, "Tap the bubble to talk · tap again to finish · hold to cancel · drag to move",
+        card.addView(Ui.text(this, "Tap to talk · tap again to finish · tap while it writes to cancel · hold to cancel · drag to move",
             12f, 0xBFFFFFFF.toInt(), bold = false).apply { setPaddingRelative(0, dp(10), 0, 0); gravity = Gravity.CENTER })
         return card
     }
@@ -182,6 +182,10 @@ class MainActivity : Screen() {
         rows += Ui.switchRow(this, R.drawable.ui_upload, "teal", "Sit right above the keyboard",
             "Drag it to set how high", prefs.dockAboveKeyboard) { on ->
             prefs.dockAboveKeyboard = on; prefs.dockLift = 0; refreshBubble()
+        }
+        rows += Ui.switchRow(this, R.drawable.ui_type, "orange", "Caps lock",
+            "EVERYTHING IN CAPITALS. Also the ABC button next to the bubble while you speak", prefs.capsLock) { on ->
+            prefs.capsLock = on; refreshBubble()
         }
         rows += Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
             "Slower, more careful", prefs.extraAccuracy) { on -> prefs.extraAccuracy = on }

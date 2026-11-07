@@ -53,6 +53,9 @@ class BubbleService : Service() {
     private lateinit var lp: WindowManager.LayoutParams
     private val recorder = Recorder()
     @Volatile private var working = false
+    @Volatile private var cancelled = false     // tapped again while it was writing the text out
+    private var capsChip: android.widget.TextView? = null
+    private var capsLp: WindowManager.LayoutParams? = null
     private var watcher: KeyboardWatcher? = null
     private var keyboardOpen = false
     private var keyboardTop: Int? = null
@@ -96,6 +99,8 @@ class BubbleService : Service() {
             }.also { it.start() }
         }
         applySize()
+        view?.caps = prefs.capsLock
+        styleCapsChip()
         updateBubble()
         // Load the model now so the first transcription doesn't wait for it.
         Thread { Whisper.ensureLoaded(Models.file(this, Models.byId(prefs.modelId)).path) }.start()
@@ -158,6 +163,61 @@ class BubbleService : Service() {
             wm.addView(v, lp)
         }
         view = v
+        v.caps = prefs.capsLock
+        addCapsChip()
+    }
+
+    /** The ABC button next to the bubble while you speak: caps lock for dictation. */
+    private fun addCapsChip() {
+        val d = resources.displayMetrics.density
+        val chipSize = (44 * d).toInt()
+        val chip = android.widget.TextView(this).apply {
+            text = "ABC"
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            contentDescription = "Caps lock"
+            visibility = View.GONE
+            setOnClickListener {
+                prefs.capsLock = !prefs.capsLock
+                styleCapsChip()
+                view?.caps = prefs.capsLock
+                buzz(15)
+            }
+        }
+        val clp = WindowManager.LayoutParams(chipSize, chipSize, lp.type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START }
+        capsChip = chip
+        capsLp = clp
+        styleCapsChip()
+        runCatching { wm.addView(chip, clp) }.onFailure { capsChip = null; capsLp = null }
+    }
+
+    private fun styleCapsChip() {
+        val chip = capsChip ?: return
+        val on = prefs.capsLock
+        chip.setTextColor(if (on) android.graphics.Color.rgb(58, 91, 217) else android.graphics.Color.WHITE)
+        chip.background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(if (on) android.graphics.Color.WHITE else android.graphics.Color.argb(220, 32, 38, 58))
+            setStroke((2 * resources.displayMetrics.density).toInt(), android.graphics.Color.rgb(58, 91, 217))
+        }
+    }
+
+    /** Shows the ABC button beside the bubble (on whichever side has room) while recording. */
+    private fun positionCapsChip() {
+        val chip = capsChip ?: return
+        val clp = capsLp ?: return
+        val bubble = view
+        val show = recorder.isRecording && bubble != null && bubble.visibility == View.VISIBLE
+        chip.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) return
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        val onRight = lp.x + size / 2 > resources.displayMetrics.widthPixels / 2
+        clp.x = if (onRight) lp.x - clp.width - gap else lp.x + size + gap
+        clp.y = lp.y + (size - clp.height) / 2
+        runCatching { wm.updateViewLayout(chip, clp) }
     }
 
     /** Re-creates the bubble when "Type into apps" is switched on or off, so it moves over or under the keyboard. */
@@ -168,6 +228,8 @@ class BubbleService : Service() {
             val wantOnTop = InsertService.instance != null
             if (wantOnTop == onTopOfKeyboard) return@post
             runCatching { wm.removeView(old) }
+            capsChip?.let { runCatching { wm.removeView(it) } }
+            capsChip = null
             view = null
             addBubble()
             updateBubble()
@@ -193,6 +255,7 @@ class BubbleService : Service() {
                         lp.x = (startX + dx).toInt().coerceAtLeast(0)
                         lp.y = (startY + dy).toInt().coerceAtLeast(0)
                         runCatching { wm.updateViewLayout(v, lp) }
+                        positionCapsChip()
                     }
                 }
                 MotionEvent.ACTION_UP -> {
@@ -230,7 +293,7 @@ class BubbleService : Service() {
 
     private fun onTap() {
         when {
-            working -> toast("Still writing out the last one…")
+            working -> cancelWork()
             recorder.isRecording -> finishRecording()
             else -> startRecording()
         }
@@ -244,9 +307,19 @@ class BubbleService : Service() {
                 buzz(60)
                 toast("Cancelled")
             }
-            working -> { Whisper.abort(); toast("Cancelled") }
+            working -> cancelWork()
             else -> toast("Drag to move · hide it from the notification")
         }
+    }
+
+    /** Stops turning speech into text: nothing gets typed. */
+    private fun cancelWork() {
+        if (cancelled) return
+        cancelled = true
+        Whisper.abort()
+        view?.state = BubbleView.State.IDLE
+        buzz(60)
+        toast("Cancelled")
     }
 
     private fun startRecording() {
@@ -275,8 +348,10 @@ class BubbleService : Service() {
             toast("Didn't hear anything")
             return
         }
+        cancelled = false
         working = true
         setState(BubbleView.State.WORKING)
+        val caps = prefs.capsLock
         val model = Models.file(this, Models.byId(prefs.modelId)).path
         val chosenModel = Models.byId(prefs.modelId)
         // English-only models must be told English; with the others, use your language setting.
@@ -294,9 +369,11 @@ class BubbleService : Service() {
             val text = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }
                 ?.let { Styles.apply(it, style, cat) }
                 ?.let { Words.apply(this, it, capitalize = style != Styles.Style.VERY_CASUAL && style != Styles.Style.GEN_Z) }
+                ?.let { if (caps) it.uppercase() else it }
             main.post {
                 working = false
                 setState(BubbleView.State.IDLE)
+                if (cancelled) { cancelled = false; return@post }
                 when {
                     raw == null -> toast("Couldn't turn that into text")
                     text.isNullOrEmpty() -> toast("Didn't catch any words")
@@ -396,6 +473,7 @@ class BubbleService : Service() {
             lp.y = y
             runCatching { wm.updateViewLayout(v, lp) }
         }
+        positionCapsChip()
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
@@ -416,6 +494,8 @@ class BubbleService : Service() {
         if (recorder.isRecording) recorder.cancel()
         if (working) Whisper.abort()
         view?.let { runCatching { wm.removeView(it) } }
+        capsChip?.let { runCatching { wm.removeView(it) } }
+        capsChip = null
         view = null
         // Free the model's memory (a few hundred MB) once the bubble is gone.
         Thread { Whisper.release() }.start()

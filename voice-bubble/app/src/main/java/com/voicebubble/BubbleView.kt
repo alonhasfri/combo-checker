@@ -14,6 +14,9 @@ class BubbleView(context: Context) : View(context) {
     var state = State.IDLE
         set(v) { field = v; alpha = if (v == State.IDLE) 0.75f else 1f; invalidate() }
     var level = 0f
+    /** Caps lock on: a small "A" badge in the corner. */
+    var caps = false
+        set(v) { field = v; invalidate() }
     var seconds = 0
 
     private val d = resources.displayMetrics.density
@@ -46,6 +49,16 @@ class BubbleView(context: Context) : View(context) {
             c.drawCircle(cx, cy, r + 2 * d + shownLevel * 4 * d, ring)
         }
         c.drawCircle(cx, cy, r, fill)
+        if (caps) {
+            val br = r * 0.32f
+            val bx = cx + r * 0.72f
+            val by = cy - r * 0.72f
+            c.drawCircle(bx, by, br, iconFill)
+            text.textSize = br * 1.25f
+            text.color = Color.rgb(58, 91, 217)
+            c.drawText("A", bx, by - (text.ascent() + text.descent()) / 2, text)
+            text.color = Color.WHITE
+        }
 
         if (state == State.WORKING) {
             ring.color = Color.WHITE

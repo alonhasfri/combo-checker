@@ -84,6 +84,10 @@ class Prefs(private val ctx: Context) {
     var dockLift: Int
         get() = p.getInt("dockLift", 0)
         set(v) = p.edit().putInt("dockLift", v).apply()
+    /** Everything you dictate comes out in CAPITALS (toggled with the ABC button while speaking). */
+    var capsLock: Boolean
+        get() = p.getBoolean("caps", false)
+        set(v) = p.edit().putBoolean("caps", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()
