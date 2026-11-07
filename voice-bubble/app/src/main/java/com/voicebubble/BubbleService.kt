@@ -534,7 +534,8 @@ class BubbleService : Service() {
         Thread {
             val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt, extra, whisperToEnglish) }.getOrNull()
             val said = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }
-            val split = said?.let { Commands.split(it) }
+            // Just "scratch that" on its own: take back the last dictation.
+            val split = said?.let { if (Commands.isScratch(it)) Commands.Split("", Commands.Cmd.Undo) else Commands.split(it) }
             if (split != null) {
                 // Text said before the command gets the usual treatment first.
                 val before = split.before.takeIf { it.isNotEmpty() }?.let { process(it, style, cat) }

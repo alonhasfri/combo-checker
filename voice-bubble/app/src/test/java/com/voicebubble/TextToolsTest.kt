@@ -13,6 +13,9 @@ class TextToolsTest {
         assertEquals("I love it!", TextTools.voiceCommands("I love it, exclamation mark."))
         assertEquals("Buy milk, eggs, and bread", TextTools.voiceCommands("Buy milk comma eggs comma and bread"))
         assertEquals("Meet at six.", TextTools.voiceCommands("Meet at five. Scratch that. Meet at six."))
+        assertEquals("I love you", TextTools.voiceCommands("I hate you scrap that I love you"))
+        assertEquals("Hello there. I love you", TextTools.voiceCommands("Hello there. I hate you, no, scratch that! I love you"))
+        assertEquals("", TextTools.voiceCommands("Scrap that."))
         assertEquals("That's it.", TextTools.voiceCommands("That's it period"))
         assertEquals("Version 3.5 is on google.com at 3:00", TextTools.voiceCommands("Version 3.5 is on google.com at 3:00"))
     }
@@ -67,6 +70,13 @@ class CommandsTest {
         assertEquals(Commands.Split("", Cmd.Undo), Commands.split("out of context, undo"))
         assertNull(Commands.split("That quote was out of context."))
         assertNull(Commands.split("They took it out of context and ran with it"))
+    }
+
+    @Test fun scratchOnItsOwnIsUndo() {
+        assert(Commands.isScratch("Scratch that!"))
+        assert(Commands.isScratch("No, scrap that."))
+        assert(!Commands.isScratch("Scratch that itch"))
+        assertEquals(Cmd.Undo, Commands.parse("Out of context, scrap that."))
     }
 
     @Test fun normalDictationIsNotACommand() {

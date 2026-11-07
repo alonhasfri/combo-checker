@@ -35,6 +35,13 @@ object Commands {
         data class Unknown(val said: String) : Cmd()
     }
 
+    /** "scratch that" and friends: remove what was just said. */
+    const val SCRATCH = "scratch that|scrap that|strike that|delete that|remove that|forget that|cancel that|erase that"
+
+    /** The whole recording is just "scratch that": undo the last dictation. */
+    fun isScratch(text: String): Boolean =
+        Regex("^(?:no |oops |wait )?(?:$SCRATCH)$").matches(norm(text))
+
     /** "out of context" — also how Whisper tends to mishear it. */
     private val trigger = Regex("^\\s*(?:hey\\s+)?out\\s+of\\s+(?:context|contacts|contexts|content|contest)\\b[\\s,.:;!-]*", RegexOption.IGNORE_CASE)
 
@@ -77,7 +84,7 @@ object Commands {
             }
         if (n.startsWith("stop translating") || n == "translation off" || n == "no translation") return Cmd.Translate(null)
         Regex("^translate (?:it |this |everything )?(?:to|into) ([\\p{L} ]+)$").find(n)?.let { return Cmd.Translate(it.groupValues[1].trim()) }
-        if (n == "undo" || n == "undo that" || n == "scratch that" || n == "delete that") return Cmd.Undo
+        if (n == "undo" || n == "undo that" || isScratch(n)) return Cmd.Undo
         if (n.startsWith("rewrite") || n.startsWith("make this") || n.startsWith("make it")) {
             // Keep the original wording (with its punctuation) of the instruction.
             val instr = rest.replace(Regex("^(?i)rewrite[\\s,.:;!-]*(?:it|this)?[\\s,.:;!-]*"), "").trim().trimEnd('.')

@@ -20,7 +20,7 @@ object TextTools {
     fun voiceCommands(text: String): String {
         var t = text
         // "scratch that" / "delete that" removes the sentence said just before it.
-        t = Regex("(?i)(^|(?<=[.!?\\n]))([^.!?\\n]*[.!?,]?)\\s*\\b(scratch that|delete that)\\b[.!,]?\\s*").replace(t) { "" }
+        t = Regex("(?i)(^|(?<=[.!?\\n]))([^.!?\\n]*?[.!?,]?)\\s*\\b(?:no,?\\s+)?(?:${Commands.SCRATCH})\\b[.!?,]*\\s*").replace(t) { "" }
         for ((said, mark) in punctuation) {
             val words = "\\b" + said.replace(" ", "\\s+") + "\\b"
             t = if (mark.startsWith("\n")) {
