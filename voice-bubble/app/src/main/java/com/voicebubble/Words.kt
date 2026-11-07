@@ -43,7 +43,10 @@ object Words {
 
     /** Dictionary words given to Whisper up front, so it already leans towards your spellings. */
     fun prompt(c: Context): String {
-        val words = dictionary(c)
+        // Your own words first, then the switched-on packs taking turns, so every pack gets a say.
+        val packLists = Packs.enabled(c).map { (it.names + it.hints).toMutableList() }
+        val words = dictionary(c).toMutableList()
+        while (packLists.any { it.isNotEmpty() }) for (l in packLists) if (l.isNotEmpty()) words += l.removeAt(0)
         if (words.isEmpty()) return ""
         val sb = StringBuilder()
         for (w in words) {
@@ -55,7 +58,7 @@ object Words {
     }
 
     fun apply(c: Context, text: String, capitalize: Boolean = true): String =
-        applyShortcuts(applyDictionary(text, dictionary(c), shortcuts(c)), shortcuts(c), capitalize)
+        applyShortcuts(applyDictionary(text, dictionary(c), shortcuts(c), strict = Packs.names(c)), shortcuts(c), capitalize)
 
     private class Tok(val start: Int, val end: Int, val text: String) { val n = norm(text) }
 
@@ -101,6 +104,13 @@ object Words {
         else -> 2
     }
 
+    /** Pack names: exact sound match up to 6 letters (so "undone" never becomes "Undyne"). */
+    private fun strictAllowed(len: Int) = when {
+        len <= 6 -> 0
+        len <= 10 -> 1
+        else -> 2
+    }
+
     private class Rep(val start: Int, val end: Int, val with: String)
 
     private fun replaceAll(text: String, reps: List<Rep>): String {
@@ -110,8 +120,9 @@ object Words {
     }
 
     /** Words that sound like a dictionary entry are written the dictionary's way. */
-    fun applyDictionary(text: String, dict: List<String>, shorts: List<Shortcut> = emptyList()): String {
-        if (dict.isEmpty()) return text
+    fun applyDictionary(text: String, dict: List<String>, shorts: List<Shortcut> = emptyList(),
+                        strict: List<String> = emptyList()): String {
+        if (dict.isEmpty() && strict.isEmpty()) return text
         val toks = tokens(text)
         if (toks.isEmpty()) return text
         val used = BooleanArray(toks.size)
@@ -119,10 +130,14 @@ object Words {
         val shortKeys = shorts.map { norm(it.say) }.toSet()
         toks.forEachIndexed { i, t -> if (t.n in shortKeys) used[i] = true }
         val reps = mutableListOf<Rep>()
-        val entries = dict.map { it to tokens(it).size }.filter { it.second > 0 }
-            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenByDescending { it.first.length })
+        // Your words, plus pack names (marked strict: they may only be off by a letter when long).
+        val userKeys = dict.map { it.lowercase() }.toSet()
+        val entries = (dict.map { Triple(it, tokens(it).size, false) } +
+                strict.filter { it.lowercase() !in userKeys }.map { Triple(it, tokens(it).size, true) })
+            .filter { it.second > 0 }
+            .sortedWith(compareByDescending<Triple<String, Int, Boolean>> { it.second }.thenByDescending { it.first.length })
 
-        for ((entry, size) in entries) {
+        for ((entry, size, isStrict) in entries) {
             val key = sound(entry)
             if (key.length < 2) continue
             // Same number of words (may be slightly misspelled), or split/joined differently (must match exactly).
@@ -134,7 +149,7 @@ object Words {
                     val window = toks.subList(i, i + k)
                     val cand = sound(window.joinToString("") { it.text })
                     val ok = if (k == size) {
-                        val a = allowed(maxOf(cand.length, key.length))
+                        val a = if (isStrict) strictAllowed(maxOf(cand.length, key.length)) else allowed(maxOf(cand.length, key.length))
                         cand.length >= 3 && abs(cand.length - key.length) <= a && (cand == key || (cand[0] == key[0] && lev(cand, key) <= a))
                     } else cand == key
                     if (ok) {

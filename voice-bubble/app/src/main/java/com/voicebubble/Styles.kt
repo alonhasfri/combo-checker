@@ -20,6 +20,7 @@ object Styles {
         CASUAL("Casual", "Caps + Less punctuation"),
         VERY_CASUAL("very casual", "No caps + No punctuation"),
         EXCITED("Excited!", "Caps + Exclamation marks"),
+        GEN_Z("gen z", "No caps + slang (tbh, fr, ngl)"),
     }
 
     /** Known apps per category (only installed ones are shown). Everything else is Other. */
@@ -79,6 +80,7 @@ object Styles {
         Style.EXCITED -> excited(s)
         Style.CASUAL -> casual(s, keepGreetingComma)
         Style.VERY_CASUAL -> veryCasual(s)
+        Style.GEN_Z -> genZ(s)
     }
 
     private fun capFirst(s: String) = s.replaceFirstChar { if (it.isLowerCase()) it.uppercaseChar() else it }
@@ -118,6 +120,23 @@ object Styles {
             .replace("\u0002", ",")
             .replace(Regex("[ \\t]{2,}"), " ")
         return t.lines().joinToString("\n") { it.trim() }.trim()
+    }
+
+    // Gen Z: very casual, plus the usual abbreviations.
+    private val slang = listOf(
+        "to be honest" to "tbh", "not going to lie" to "ngl", "not gonna lie" to "ngl", "for real" to "fr",
+        "oh my god" to "omg", "oh my gosh" to "omg", "i don't know" to "idk", "i do not know" to "idk",
+        "in my opinion" to "imo", "right now" to "rn", "be right back" to "brb", "talk to you later" to "ttyl",
+        "on my way" to "omw", "by the way" to "btw", "i love you" to "ily", "laughing out loud" to "lol",
+        "no problem" to "np", "never mind" to "nvm", "let me know" to "lmk", "i know right" to "ikr",
+        "if you know you know" to "iykyk", "because" to "bc", "probably" to "prob", "okay" to "ok",
+        "what the heck" to "wth", "shaking my head" to "smh", "as far as i know" to "afaik",
+    ).map { (from, to) -> Regex("\\b" + from.replace(" ", "\\s+") + "\\b", RegexOption.IGNORE_CASE) to to }
+
+    fun genZ(s: String): String {
+        var t = s
+        for ((re, to) in slang) t = re.replace(t, to)
+        return veryCasual(t)
     }
 
     // "I am going" -> "I'm going". Never at the end of a clause ("Yes, I am." stays).

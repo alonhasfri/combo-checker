@@ -3,15 +3,23 @@ package com.voicebubble
 import android.content.Context
 import java.io.File
 
-data class Model(val id: String, val title: String, val detail: String, val file: String, val bytes: Long) {
+data class Model(
+    val id: String, val title: String, val detail: String, val file: String, val bytes: Long,
+    /** English-only models are more accurate in English and never mis-guess the language. */
+    val englishOnly: Boolean = false,
+) {
     val url get() = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
 }
 
 object Models {
     val all = listOf(
-        Model("small", "Accurate (recommended)", "Whisper small · 190 MB · a few seconds per sentence",
+        Model("small.en", "Accurate · English (recommended)", "Whisper small, English only · 190 MB · best results",
+            "ggml-small.en-q5_1.bin", 190_098_681L, englishOnly = true),
+        Model("base.en", "Fast · English", "Whisper base, English only · 60 MB · quickest",
+            "ggml-base.en-q5_1.bin", 59_721_011L, englishOnly = true),
+        Model("small", "Accurate · all languages", "Whisper small · 190 MB · Hebrew, German and more",
             "ggml-small-q5_1.bin", 190_085_487L),
-        Model("base", "Fast", "Whisper base · 60 MB · quicker, more mistakes",
+        Model("base", "Fast · all languages", "Whisper base · 60 MB · quick but makes more mistakes",
             "ggml-base-q5_1.bin", 59_707_625L),
     )
     fun byId(id: String?) = all.firstOrNull { it.id == id } ?: all[0]
@@ -31,8 +39,12 @@ object Langs {
 class Prefs(ctx: Context) {
     private val p = ctx.getSharedPreferences("voice", Context.MODE_PRIVATE)
     var modelId: String
-        get() = p.getString("model", "small")!!
+        get() = p.getString("model", "small.en")!!
         set(v) = p.edit().putString("model", v).apply()
+    /** Slower but more careful: full 30 s window and several guesses. */
+    var extraAccuracy: Boolean
+        get() = p.getBoolean("extraAcc", false)
+        set(v) = p.edit().putBoolean("extraAcc", v).apply()
     var lang: String
         get() = p.getString("lang", "auto")!!
         set(v) = p.edit().putString("lang", v).apply()

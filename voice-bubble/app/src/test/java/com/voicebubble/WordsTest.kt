@@ -63,3 +63,26 @@ class WordsTest {
         assertEquals(listOf(Shortcut("btw", "by the way"), Shortcut("omw", "on my way")), p.shorts)
     }
 }
+
+class PacksTest {
+    @Test fun packNamesFixOnlySameSounding() {
+        val strict = Packs.jjk.names + Packs.toby.names
+        fun d(s: String) = Words.applyDictionary(s, emptyList(), emptyList(), strict)
+        assertEquals("Talk to Sukuna.", d("Talk to sukuna."))
+        assertEquals("Gojo vs Sukuna", d("gojo vs Sukuna"))
+        assertEquals("I like Spamton", d("I like Spamtun"))
+        assertEquals("I left it undone.", d("I left it undone."))
+        assertEquals("Chris is here.", d("Chris is here."))
+        assertEquals("We combined them.", d("We combined them."))
+    }
+
+    @Test fun userWordsStillWinOverPacks() {
+        assertEquals("uro", Words.applyDictionary("uro", listOf("uro"), emptyList(), listOf("Uro")))
+    }
+
+    @Test fun audioWindow() {
+        assertEquals(512, audioCtxFor(16000 * 3))
+        assertEquals(1128, audioCtxFor(16000 * 20))
+        assertEquals(1500, audioCtxFor(16000 * 40))
+    }
+}

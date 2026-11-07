@@ -57,3 +57,11 @@ class StylesTest {
         assertEquals("by the way it works", Words.applyShortcuts("btw it works", s, capitalize = false))
     }
 }
+
+class GenZTest {
+    @Test fun slang() {
+        assertEquals("tbh idk fr", Styles.apply("To be honest, I don't know. For real.", Style.GEN_Z, Category.OTHER))
+        assertEquals("omg ngl that was fire", Styles.apply("Oh my god, not gonna lie, that was fire!", Style.GEN_Z, Category.PERSONAL))
+        assertEquals("ok brb", Styles.apply("Okay, be right back.", Style.GEN_Z, Category.PERSONAL))
+    }
+}

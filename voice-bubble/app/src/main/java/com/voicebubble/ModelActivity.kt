@@ -24,7 +24,8 @@ class ModelActivity : Screen() {
         val prefs = Prefs(this)
         val page = Ui.page(this)
         page.addView(Ui.backHeader(this, "Speech model"))
-        page.addView(Ui.note(this, "The model turns your voice into text, right on your phone. It's downloaded once; after that it works offline.")
+        page.addView(Ui.note(this, "The model turns your voice into text, right on your phone. It's downloaded once; after that it works offline. " +
+                "If you speak English, pick an English model: they're more accurate and never mistake your language.")
             .apply { setPaddingRelative(dp(4), dp(14), dp(4), 0) })
 
         Models.all.forEach { m ->
@@ -33,7 +34,8 @@ class ModelActivity : Screen() {
             val card = Ui.paddedCard(this)
             (card.background as GradientDrawable).setStroke(dp(if (chosen) 2 else 1), if (chosen) p.accent else p.border)
             val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            head.addView(Ui.tile(this, if (m.id == "small") R.drawable.ui_target else R.drawable.ui_zap, if (m.id == "small") "purple" else "orange"))
+            val accurate = m.id.startsWith("small")
+            head.addView(Ui.tile(this, if (accurate) R.drawable.ui_target else R.drawable.ui_zap, if (accurate) "purple" else "orange"))
             val col = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPaddingRelative(dp(12), 0, dp(8), 0)

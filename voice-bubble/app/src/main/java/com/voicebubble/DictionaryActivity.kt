@@ -41,6 +41,18 @@ class DictionaryActivity : Screen() {
         page.addView(l, Ui.lp(this, 14))
         fillList()
 
+        // Ready-made packs: one switch adds all their words.
+        page.addView(Ui.sectionTitle(this, "Word packs"))
+        page.addView(Ui.group(this, Packs.all.map { pk ->
+            Ui.switchRow(this, pk.icon, pk.tone, pk.title, "${pk.sub} · ${pk.size} words", Packs.isOn(this, pk)) { on ->
+                Packs.setOn(this, pk, on)
+                toast(if (on) "${pk.title} words added" else "${pk.title} words removed")
+            }
+        }))
+        page.addView(Ui.note(this, "Pack words work like your own, without filling up your list. " +
+                "Names are fixed only when they sound exactly the same, so normal words are never changed.")
+            .apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+
         page.addView(Ui.sectionTitle(this, "Bring your words"))
         page.addView(Ui.group(this, listOf(
             Ui.row(this, R.drawable.ui_upload, "purple", "Import from another app", sub = "Screenshots, Claude, or a code") {

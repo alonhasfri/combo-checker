@@ -70,6 +70,19 @@ Categories: **Personal** (WhatsApp, Messages, Telegram, …), **Work** (Slack, T
 To know which app you're in, the basic version needs **Usage access** (the Styles screen has a
 button). Without it, everything uses the Other style.
 
+## Speed and models
+- Whisper only processes as much audio as you spoke (not a fixed 30 s window) and decodes greedily,
+  so short dictations are several times faster. **Extra accuracy** (Settings) goes back to the
+  full window with beam search.
+- **English** models (small.en / base.en) are the most accurate for English and never mistake
+  the language. The "all languages" models need the right language set (auto-detect often
+  guesses wrong on short sentences).
+
+## Word packs and Gen Z
+Dictionary → Word packs: **Jujutsu Kaisen**, **Deltarune & Undertale**, **Gen Z slang**. Pack
+names are only fixed when they sound exactly the same; slang and terms are hints to Whisper only.
+Style → **gen z** writes like a text: no caps, tbh / fr / ngl / idk / rn / omw …
+
 ## Notes
 - Built for 64-bit ARM phones from roughly 2018 onwards (ARMv8.2).
 - A sentence takes a few seconds to write out on *Accurate*, less on *Fast*.

@@ -34,7 +34,8 @@ Java_com_voicebubble_Whisper_nativeAbort(JNIEnv *, jobject) { g_abort = true; }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_voicebubble_Whisper_nativeTranscribe(JNIEnv *env, jobject, jlong ptr, jfloatArray jaudio,
-                                              jstring jlang, jstring jprompt, jint threads) {
+                                              jstring jlang, jstring jprompt, jint threads,
+                                              jint audioCtx, jint beams) {
     auto *ctx = reinterpret_cast<whisper_context *>(ptr);
     if (!ctx) return nullptr;
     g_abort = false;
@@ -44,8 +45,12 @@ Java_com_voicebubble_Whisper_nativeTranscribe(JNIEnv *env, jobject, jlong ptr, j
     jsize n = env->GetArrayLength(jaudio);
     jfloat *audio = env->GetFloatArrayElements(jaudio, nullptr);
 
-    whisper_full_params p = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
-    p.beam_search.beam_size = 3;   // a little slower than greedy, noticeably fewer mistakes
+    // Greedy is quickest; beam search (Extra accuracy) tries several guesses and is slower.
+    whisper_full_params p = whisper_full_default_params(beams > 1 ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
+    if (beams > 1) p.beam_search.beam_size = beams;
+    // Whisper normally works on a full 30 s window even for a 3 s sentence. Limiting the encoder
+    // to the length actually spoken is the biggest speed-up for short dictations.
+    p.audio_ctx = audioCtx;
     p.n_threads = threads;
     p.print_realtime = false;
     p.print_progress = false;

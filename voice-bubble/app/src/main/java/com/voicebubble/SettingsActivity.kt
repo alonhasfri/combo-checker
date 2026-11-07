@@ -21,7 +21,16 @@ class SettingsActivity : Screen() {
                 valueColor = if (Setup.modelReady(this)) null else p.danger) {
                 startActivity(Intent(this, ModelActivity::class.java))
             },
-            Ui.row(this, R.drawable.ui_globe, "teal", "Language", value = Langs.all.firstOrNull { it.first == prefs.lang }?.second) {
+            Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
+                "Slower: listens to the whole window and tries several guesses", prefs.extraAccuracy) { on ->
+                prefs.extraAccuracy = on
+            },
+            Ui.row(this, R.drawable.ui_globe, "teal", "Language",
+                value = if (model.englishOnly) "English (set by model)" else Langs.all.firstOrNull { it.first == prefs.lang }?.second) {
+                if (model.englishOnly) {
+                    toast("This model only does English. Pick an \"all languages\" model to change the language.")
+                    return@row
+                }
                 val names = Langs.all.map { it.second }.toTypedArray()
                 val cur = Langs.all.indexOfFirst { it.first == prefs.lang }.coerceAtLeast(0)
                 Ui.dialog(this).setTitle("Language you speak").setSingleChoiceItems(names, cur) { d, i ->
@@ -29,7 +38,8 @@ class SettingsActivity : Screen() {
                 }.setNegativeButton("Cancel", null).show()
             },
         )))
-        page.addView(Ui.note(this, "Choosing your language is a bit more accurate than auto-detect.").apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+        page.addView(Ui.note(this, "English models are the most accurate for English. With an \"all languages\" model, " +
+                "choose your language: auto-detect often guesses wrong on short sentences.").apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
 
         // Bubble
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
