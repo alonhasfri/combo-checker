@@ -162,6 +162,14 @@ class Prefs(private val ctx: Context) {
     var typeWhileTalking: Boolean
         get() = p.getBoolean("typeLive", true)
         set(v) = p.edit().putBoolean("typeLive", v).apply()
+    /** Live engine: type the draft live, then swap in Whisper's more accurate text at the end. */
+    var liveFinalWhisper: Boolean
+        get() = p.getBoolean("liveFinalWhisper", true)
+        set(v) = p.edit().putBoolean("liveFinalWhisper", v).apply()
+    /** What happened the last time the Live engine was started ("ok" or the problem), for the model screen. */
+    var liveStatus: String
+        get() = p.getString("liveStatus", "")!!
+        set(v) = p.edit().putString("liveStatus", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx" + orient, -1)
         set(v) = p.edit().putInt("bx" + orient, v).apply()

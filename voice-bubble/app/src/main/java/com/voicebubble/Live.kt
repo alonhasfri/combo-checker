@@ -89,9 +89,12 @@ object Live {
     class Session(private val stream: OnlineStream) {
         @Volatile var text = ""
             private set
+        /** Finished or cancelled: the stream is gone, ignore late audio. */
+        @Volatile private var done = false
 
         /** Adds new audio and works on it. Returns the text so far. */
         fun feed(samples: FloatArray): String = synchronized(lock) {
+            if (done) return text
             val r = recognizer ?: return text
             if (samples.isNotEmpty()) stream.acceptWaveform(samples, 16000)
             while (r.isReady(stream)) r.decode(stream)
@@ -101,6 +104,8 @@ object Live {
 
         /** No more audio: finishes the last words and returns the full text. */
         fun finish(): String = synchronized(lock) {
+            if (done) return text
+            done = true
             val r = recognizer ?: return text
             // A little silence lets the model finish the last word.
             stream.acceptWaveform(FloatArray(16000 * 2 / 5), 16000)
@@ -111,7 +116,11 @@ object Live {
             text
         }
 
-        fun cancel() = synchronized(lock) { runCatching { stream.release() } }
+        fun cancel() = synchronized(lock) {
+            if (done) return@synchronized
+            done = true
+            runCatching { stream.release() }
+        }
     }
 
     fun start(): Session? = synchronized(lock) {

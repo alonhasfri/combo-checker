@@ -87,6 +87,12 @@ class ModelActivity : Screen() {
         page.addView(Ui.note(this, "Turns speech into text while you're still talking, so it's ready the moment you stop. " +
                 "English only: for other languages or translating, it uses your Whisper model.")
             .apply { setPaddingRelative(dp(4), 0, dp(4), dp(4)) })
+        // Did it work the last time you dictated?
+        if (prefs.engine == "live" && prefs.liveStatus.isNotEmpty()) {
+            val ok = prefs.liveStatus == "ok"
+            page.addView(Ui.text(this, if (ok) "Live engine: working ✓" else "Live engine couldn't start: ${prefs.liveStatus}",
+                14f, if (ok) p.good else p.danger).apply { setPaddingRelative(dp(4), dp(4), dp(4), dp(4)) })
+        }
         Live.models.forEach { lm ->
             val chosen = prefs.engine == "live" && prefs.liveModelId == lm.id
             val have = Live.isDownloaded(this, lm)

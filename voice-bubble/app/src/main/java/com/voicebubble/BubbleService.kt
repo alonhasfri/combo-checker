@@ -511,6 +511,7 @@ class BubbleService : Service() {
         /** Set when the Live (streaming) engine is used: text grows while you talk. */
         var live: Live.Session? = null
         var typed = false                   // Live + autotype: words already typed into the text box
+        var whisperFinal = true             // Live: Whisper writes the final text (more accurate)
         var limit: Int? = null              // longest message for this app (null = none)
         var fed = 0                         // Live: samples already given to it
         var cutAt = 0                       // audio before this sample is already being turned into text
@@ -521,6 +522,9 @@ class BubbleService : Service() {
     private var session: Session? = null
     @Volatile private var sessionToken = 0
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** The Live engine has its own queue, so live typing never waits behind Whisper. */
+    private val liveWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var liveAnnounced = false
     private var liveView: TextView? = null
     private var offerView: TextView? = null
 
@@ -555,10 +559,18 @@ class BubbleService : Service() {
         if (prefs.engine == "live" && (appLang == null || appLang == "en") && !toEnglish) {
             val lm = Live.byId(prefs.liveModelId)
             when {
-                !Live.isDownloaded(this, lm) -> toast("Live model not downloaded: using Whisper")
-                Live.ensureLoaded(this, lm) -> s.live = Live.start()
-                else -> toast("Live engine couldn't start (${Live.lastError ?: "unknown"}): using Whisper")
+                !Live.isDownloaded(this, lm) -> { prefs.liveStatus = "model not downloaded"; toast("Live model not downloaded: using Whisper") }
+                Live.ensureLoaded(this, lm) -> {
+                    s.live = Live.start()
+                    prefs.liveStatus = if (s.live != null) "ok" else "couldn't open a stream"
+                    if (s.live != null && !liveAnnounced) { liveAnnounced = true; toast("Live engine on ✓") }
+                }
+                else -> {
+                    prefs.liveStatus = Live.lastError ?: "unknown problem"
+                    toast("Live engine couldn't start (${Live.lastError ?: "unknown"}): using Whisper")
+                }
             }
+            s.whisperFinal = s.live == null || prefs.liveFinalWhisper
         }
         s.limit = Limit.forApp(this, app)
         try {
@@ -591,14 +603,13 @@ class BubbleService : Service() {
                 if (total > s.fed) {
                     val chunk = recorder.copy(s.fed, total)
                     s.fed = total
-                    worker.execute {
+                    liveWorker.execute {
                         if (s.token != sessionToken) return@execute
                         val text = live.feed(chunk)
                         main.post { if (s.token == sessionToken) typeLive(s, text) }
                     }
                 }
-                main.postDelayed(this, 150)
-                return
+                if (!s.whisperFinal) { main.postDelayed(this, 150); return }
             }
             val total = recorder.sampleCount
             if (total - s.cutAt > Recorder.RATE * 5 / 2) {
@@ -610,7 +621,7 @@ class BubbleService : Service() {
                     transcribePart(s, seg.copyOf(cut))
                 }
             }
-            main.postDelayed(this, 400)
+            main.postDelayed(this, if (s.live != null) 150 else 400)
         }
     }
 
@@ -639,7 +650,7 @@ class BubbleService : Service() {
                 if (txt == null) s.failed = true
                 s.parts[idx] = txt?.let { clean(it) } ?: ""
             }
-            main.post { if (s.token == sessionToken) showLive(s) }
+            main.post { if (s.token == sessionToken && s.live == null) showLive(s) }
         }
     }
 
@@ -661,21 +672,25 @@ class BubbleService : Service() {
         val caps = prefs.capsLock
         val seconds = audio.size / Recorder.RATE.toFloat()
         val live = s.live
-        if (live == null && s.cutAt < audio.size) transcribePart(s, audio.copyOfRange(s.cutAt, audio.size))
+        if (s.whisperFinal && s.cutAt < audio.size) transcribePart(s, audio.copyOfRange(s.cutAt, audio.size))
         // Runs after every part is done (one worker, in order).
         worker.execute {
             if (s.token != sessionToken) return@execute
             val said: String?
             val failed: Boolean
-            if (live != null) {
-                // Live: most of it is already done; add the last bit and finish.
-                if (audio.size > s.fed) live.feed(audio.copyOfRange(s.fed, audio.size))
-                said = clean(live.finish()).takeIf { it.isNotEmpty() }
-                failed = false
-            } else {
+            // Live's draft (finished off with the last bit of audio).
+            val liveText = live?.let { l ->
+                if (audio.size > s.fed) l.feed(audio.copyOfRange(s.fed, audio.size))
+                clean(l.finish()).takeIf { it.isNotEmpty() }
+            }
+            if (s.whisperFinal) {
+                // Whisper's text is the final one (more accurate); Live's draft only if Whisper got nothing.
                 val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
-                said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
+                said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() } ?: liveText
                 failed = said == null && synchronized(s) { s.failed }
+            } else {
+                said = liveText
+                failed = false
             }
             if (said != null) Adapt.observe(this, said)
             // Just "scratch that" on its own: take back the last dictation.
@@ -1187,6 +1202,7 @@ class BubbleService : Service() {
         offerView?.let { runCatching { wm.removeView(it) } }
         offerView = null
         worker.shutdownNow()
+        liveWorker.shutdownNow()
         view = null
         tileChanged()
         // Free the model's memory (a few hundred MB) once the bubble is gone.

@@ -217,6 +217,8 @@ class MainActivity : Screen() {
             sub = "Longest message. Roblox gets 200 automatically") { pickLimit(this) { render() } }
         if (prefs.engine == "live" && BuildConfig.AUTOTYPE) rows += Ui.switchRow(this, R.drawable.ui_wand, "gold", "Type while I talk",
             "Live engine: words appear in the text box as you speak", prefs.typeWhileTalking) { on -> prefs.typeWhileTalking = on }
+        if (prefs.engine == "live") rows += Ui.switchRow(this, R.drawable.ui_target, "purple", "Whisper checks the final text",
+            "Live types a quick draft; when you stop, Whisper's more accurate text replaces it", prefs.liveFinalWhisper) { on -> prefs.liveFinalWhisper = on }
         rows += Ui.switchRow(this, R.drawable.ui_book, "green", "Learn how I talk",
             "Remembers your fixes, names you use and how you write", Adapt.isOn(this)) { on -> Adapt.setOn(this, on) }
         rows += Ui.switchRow(this, R.drawable.ui_type, "blue", "Live text",
