@@ -143,6 +143,10 @@ class Prefs(private val ctx: Context) {
     var aiFast: Boolean
         get() = p.getBoolean("aiFast", false)
         set(v) = p.edit().putBoolean("aiFast", v).apply()
+    /** Shakespeare without AI: instant, on the phone (simpler than the AI version). */
+    var instantShakespeare: Boolean
+        get() = p.getBoolean("instantShakespeare", false)
+        set(v) = p.edit().putBoolean("instantShakespeare", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx" + orient, -1)
         set(v) = p.edit().putInt("bx" + orient, v).apply()

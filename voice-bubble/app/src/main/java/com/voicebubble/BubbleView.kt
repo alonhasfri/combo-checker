@@ -40,6 +40,9 @@ class BubbleView(context: Context) : View(context) {
     /** Caps lock on: a small "A" badge in the corner. */
     var caps = false
         set(v) { field = v; invalidate() }
+    /** "Talk like" mode on: a small purple badge, so you know everything gets rewritten. */
+    var persona = false
+        set(v) { field = v; invalidate() }
     var skin: Skins.Skin = Skins.all[0]
         set(v) { field = v; invalidate() }
     /** Being moved: a highlighted outline. */
@@ -142,6 +145,18 @@ class BubbleView(context: Context) : View(context) {
             c.drawText("A", bx, by - (text.ascent() + text.descent()) / 2, text)
             iconFill.color = ink
             text.color = ink
+        }
+
+        if (persona) {
+            val br = r * 0.28f
+            val bx = cx - r * 0.72f
+            val by = cy + r * 0.72f
+            iconFill.color = Color.rgb(156, 92, 255)
+            c.drawCircle(bx, by, br, iconFill)
+            ring.color = Color.WHITE
+            ring.strokeWidth = 1.5f * d
+            c.drawCircle(bx, by, br, ring)
+            iconFill.color = ink
         }
 
         if (state == State.WORKING) {

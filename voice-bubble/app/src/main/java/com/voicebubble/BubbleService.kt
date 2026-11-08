@@ -162,6 +162,7 @@ class BubbleService : Service() {
     private fun refreshLook() {
         view?.skin = Skins.byId(prefs.skin)
         view?.caps = prefs.capsLock
+        view?.persona = prefs.persona != null
         styleCapsChip()
     }
 
@@ -674,7 +675,9 @@ class BubbleService : Service() {
             var problem: String? = null
             // "Talk like …" mode: every dictation rewritten in that voice.
             val persona = prefs.persona
-            if (text != null && persona != null && Ai.hasKey(this)) {
+            if (text != null && Shakespeare.wanted(persona) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
+                text = Shakespeare.apply(text)   // instant, no AI
+            } else if (text != null && persona != null && Ai.hasKey(this)) {
                 text = try { Ai.rewrite(this, text, "Make me sound like $persona") } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (text != null && s.aiTarget != null) {
@@ -845,6 +848,7 @@ class BubbleService : Service() {
             is Commands.Cmd.Summarize -> summarize(cmd.instruction)
             is Commands.Cmd.Persona -> {
                 prefs.persona = cmd.who
+                refreshLook()
                 toast(when {
                     cmd.who == null -> "Back to your normal voice"
                     !Ai.hasKey(this) -> "Talking like ${cmd.who} needs an AI key (Settings → AI)"
@@ -862,6 +866,14 @@ class BubbleService : Service() {
      */
     private fun rewrite(instruction: String, fresh: String? = null) {
         val text = fresh ?: lastText ?: run { toast("Dictate something first, then ask to rewrite it"); return }
+        // Shakespeare can be done instantly on the phone.
+        if (Shakespeare.wanted(instruction) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
+            val out = Shakespeare.apply(text)
+            if (fresh != null) deliver(out)
+            else if (InsertService.instance?.replaceLast(out) == true) { lastText = out; buzz(15); showUndo() }
+            else { lastText = out; copyOut(out); toast("Copied: paste it over the old one") }
+            return
+        }
         if (!Ai.hasKey(this)) {
             toast("Rewriting needs an AI key (Settings → AI)")
             fresh?.let { deliver(it) }   // don't lose what you said

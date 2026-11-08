@@ -134,3 +134,19 @@ class DictionaryFixesTest {
         assertEquals("Go home", d("Go home"))
     }
 }
+
+class ShakespeareTest {
+    @Test fun instant() {
+        assertEquals("Forsooth, art thou coming to the party? I bethink 'tis most fun.",
+            Shakespeare.apply("Are you coming to the party? I think it is very fun."))
+        assertEquals("Good morrow, I thank thee for thy help.", Shakespeare.apply("Hello, thank you for your help."))
+        assertEquals("Nay, I have no coin.", Shakespeare.apply("No, I have no money."))
+    }
+
+    @Test fun turningCharacterModeOff() {
+        assertEquals(Cmd.Persona(null), Commands.parse("Out of context, make me sound normal."))
+        assertEquals(Cmd.Persona(null), Commands.parse("out of context, back to normal"))
+        assertEquals(Cmd.Persona(null), Commands.parse("Hey bubble, make me talk normally", "hey bubble"))
+        assertEquals(Cmd.Persona(null), Commands.parse("out of context, stop the character"))
+    }
+}

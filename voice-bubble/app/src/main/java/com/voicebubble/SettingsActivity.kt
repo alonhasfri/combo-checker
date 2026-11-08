@@ -76,6 +76,8 @@ class SettingsActivity : Screen() {
         page.addView(Ui.group(this, listOf(
             Ui.row(this, R.drawable.ui_key, "purple", "AI key",
                 value = if (Ai.hasKey(this)) Ai.provider(this) + " ✓" else "Not set") { aiKeyDialog() },
+            Ui.switchRow(this, R.drawable.ui_book, "purple", "Instant Shakespeare",
+                "Shakespeare on the phone with no AI: no waiting, but simpler", prefs.instantShakespeare) { on -> prefs.instantShakespeare = on },
             Ui.switchRow(this, R.drawable.ui_zap, "orange", "Fast Claude",
                 "With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5", prefs.aiFast) { on -> prefs.aiFast = on },
         )))

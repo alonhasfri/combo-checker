@@ -125,7 +125,10 @@ object Commands {
                 feature(what)?.let { return Cmd.Toggle(it, on) }
             }
         // "talk normally" / "stop talking like Shakespeare": persona off.
-        if (Regex("^(talk|speak|sound) normal(ly)?|^normal (mode|voice)|^stop (talking|sounding|speaking) like|^no more (persona|character)").containsMatchIn(n))
+        if (Regex("^(?:(?:make|let) (?:me|it|this) )?(?:talk|speak|sound|be|write) normal(?:ly)?|^(?:go )?back to normal|" +
+                "^normal(?: mode| voice| me)?$|^stop (?:talking|sounding|speaking|writing) like|" +
+                "^stop (?:the )?(?:character|persona|voice|accent|shakespeare)|^no more (?:persona|character|shakespeare)|" +
+                "^(?:turn off|disable) (?:the )?(?:character|persona|talk like)|^be (?:myself|me)\\b|^my (?:own|normal) voice").containsMatchIn(n))
             return Cmd.Persona(null)
         // "make me sound like Shakespeare", "talk like Rouxls Kaard from now on", "in the style of a pirate".
         Regex("^(?:make (?:me|it|this) (?:sound|talk|speak|write|look) like|make (?:me|it|this) (?:sound|talk|speak) as|sound like|talk like|speak like|write like|say it like|say this like|rewrite (?:it |this )?(?:like|as)|in the style of|(?:always )?(?:talk|sound|speak) like)\\s+(.+)$")
