@@ -72,7 +72,8 @@ class PacksTest {
         assertEquals("Gojo vs Sukuna", d("gojo vs Sukuna"))
         assertEquals("I like Spamton", d("I like Spamtun"))
         assertEquals("I left it undone.", d("I left it undone."))
-        assertEquals("Chris is here.", d("Chris is here."))
+        // With the Deltarune pack on, "Chris" sounds like "Kris" (and Kris is a pack name).
+        assertEquals("Kris is here.", d("Chris is here."))
         assertEquals("We combined them.", d("We combined them."))
     }
 

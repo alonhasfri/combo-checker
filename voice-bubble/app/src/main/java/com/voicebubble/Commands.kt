@@ -47,20 +47,37 @@ object Commands {
 
     const val DEFAULT_WORD = "out of context"
 
-    /** The command phrase as a pattern. The default also allows how Whisper tends to mishear it. */
-    private fun phrase(word: String): String {
-        val w = norm(word).ifEmpty { DEFAULT_WORD }
-        if (w == DEFAULT_WORD) return "(?:hey\\s+)?out\\s+of\\s+(?:context|contacts|contexts|content|contest)"
-        return w.split(' ').joinToString("[\\s,.-]+") { Regex.escape(it) }
+    /** A word in the text, with where it is. */
+    private class Tok(val start: Int, val end: Int, val word: String)
+    private fun toks(text: String) =
+        Regex("[\\p{L}\\p{N}'’]+").findAll(text).map { Tok(it.range.first, it.range.last + 1, it.value) }.toList()
+
+    /** Two words sound alike: small differences allowed ("bubbles"/"bubble", "hay"/"hey", "contacts"/"context"). */
+    private fun alike(heard: String, want: String): Boolean {
+        val a = Words.sound(heard).removeSuffix("s")
+        val b = Words.sound(want).removeSuffix("s")
+        if (a == b) return true
+        if (a.isEmpty() || b.isEmpty()) return false
+        val len = maxOf(a.length, b.length)
+        // Longer words must start the same ("bubble" ≠ "double").
+        if (len >= 4 && a[0] != b[0]) return false
+        val allowed = if (len <= 3) 1 else maxOf(1, len / 3)
+        return Words.lev(a, b) <= allowed
     }
 
-    private fun trigger(word: String) = Regex("^\\s*" + phrase(word) + "\\b[\\s,.:;!-]*", RegexOption.IGNORE_CASE)
+    /**
+     * Where the command phrase is: the token index range, matched by sound word by word.
+     * The first word of a longer phrase may be any short word ("hey" heard as "a" or "hi").
+     */
+    private fun phraseAt(t: List<Tok>, i: Int, phrase: List<String>): Boolean {
+        if (i + phrase.size > t.size) return false
+        return phrase.indices.all { j ->
+            val heard = t[i + j].word
+            alike(heard, phrase[j]) || (j == 0 && phrase.size > 1 && phrase[0].length <= 3 && heard.length <= 3)
+        }
+    }
 
-    private fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}' ]+"), " ").replace(Regex("\\s+"), " ").trim()
-
-    /** "…text…, out of context, make this longer": the phrase can also come after what you dictated. */
-    private fun triggerAnywhere(word: String) =
-        Regex("(?:^|[\\s,.!?;:]+)" + phrase(word) + "\\b[\\s,.:;!-]*", RegexOption.IGNORE_CASE)
+    private fun phraseWords(word: String) = norm(word).ifEmpty { DEFAULT_WORD }.split(' ').filter { it.isNotEmpty() }
 
     /** A command, plus what you dictated before it (empty when the recording starts with the command). */
     data class Split(val before: String, val cmd: Cmd)
@@ -70,17 +87,29 @@ object Commands {
      * so a normal sentence like "that quote was out of context" is still typed as text.
      */
     fun split(text: String, word: String = DEFAULT_WORD): Split? {
-        val m = triggerAnywhere(word).find(text) ?: return null
-        val before = text.substring(0, m.range.first).trim().trimEnd(',', ';', ':', '-').trim()
-        val cmd = parseRest(text.substring(m.range.last + 1).trim())
-        if (before.isNotEmpty() && cmd is Cmd.Unknown) return null
-        return Split(before, cmd)
+        val phrase = phraseWords(word)
+        val t = toks(text)
+        for (i in t.indices) {
+            if (!phraseAt(t, i, phrase)) continue
+            val before = text.substring(0, t[i].start).trim().trimEnd(',', ';', ':', '-', '.').trim()
+            val cmd = parseRest(text.substring(t[i + phrase.size - 1].end).trimStart(' ', ',', '.', ':', ';', '!', '-').trim())
+            // After some text it must be a real command, so normal sentences aren't swallowed.
+            if (before.isNotEmpty() && cmd is Cmd.Unknown) continue
+            return Split(before, cmd)
+        }
+        return null
     }
 
-    /** Null when it's normal dictation (command at the start only). */
+    /** Null when it's normal dictation (command at the start only; "um"/"okay" before it is fine). */
     fun parse(text: String, word: String = DEFAULT_WORD): Cmd? {
-        val m = trigger(word).find(text) ?: return null
-        return parseRest(text.substring(m.range.last + 1).trim())
+        val phrase = phraseWords(word)
+        val t = toks(text)
+        val start = when {
+            phraseAt(t, 0, phrase) -> 0
+            t.isNotEmpty() && t[0].word.lowercase() in setOf("um", "uh", "okay", "ok", "so", "and") && phraseAt(t, 1, phrase) -> 1
+            else -> return null
+        }
+        return parseRest(text.substring(t[start + phrase.size - 1].end).trimStart(' ', ',', '.', ':', ';', '!', '-').trim())
     }
 
     private fun parseRest(rest: String): Cmd {

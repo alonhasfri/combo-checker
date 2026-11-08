@@ -537,7 +537,8 @@ class BubbleService : Service() {
         val aiTarget = target?.takeIf { !toEnglish && !(it.equals("English", true) && !Ai.hasKey(this)) }
         val s = Session(++sessionToken, app, Styles.categoryOf(app), Styles.forApp(this, app),
             Models.file(this, chosen).path, lang, prefs.extraAccuracy,
-            listOf(Words.prompt(this), Adapt.prompt(this)).filter { it.isNotBlank() }.joinToString(" "),
+            // Your command word first, so Whisper writes it right; then your words and style.
+            listOf(prefs.commandWord + ".", Words.prompt(this), Adapt.prompt(this)).filter { it.isNotBlank() }.joinToString(" "),
             toEnglish, aiTarget, prefs.commandWord)
         try {
             recorder.onMaxReached = { main.post { if (recorder.isRecording) finishRecording() } }

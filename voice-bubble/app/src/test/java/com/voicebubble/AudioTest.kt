@@ -98,3 +98,39 @@ class LooseCommandsTest {
         assertNull(Commands.split("That quote was taken out of context by them"))
     }
 }
+
+class FuzzyCommandWordTest {
+    @Test fun misheardCommandWord() {
+        assertEquals(Cmd.Undo, Commands.parse("Hey bubbles, undo", "hey bubble"))
+        assertEquals(Cmd.Undo, Commands.parse("A bubble, undo.", "hey bubble"))
+        assertEquals(Cmd.Toggle(Feature.EMOJI, true), Commands.parse("Hay Bubble enable emoji", "hey bubble"))
+        assertEquals(Cmd.Undo, Commands.parse("Um, hey bobble, undo", "hey bubble"))
+        assertEquals(Commands.Split("Nice one", Cmd.Rewrite("Make me sound like Spamton")),
+            Commands.split("Nice one. Hey bubbles make me sound like Spamton", "hey bubble"))
+    }
+
+    @Test fun notTriggeredByLookalikes() {
+        assertNull(Commands.split("I want a double, make it spicy", "hey bubble"))
+        assertNull(Commands.parse("Hey buddy, undo", "hey bubble"))
+    }
+}
+
+class DictionaryFixesTest {
+    private val dict = listOf("Gojo", "Spamton", "Sukuna")
+    private fun d(s: String) = Words.applyDictionary(s, dict)
+
+    @Test fun splitWrongly() {
+        assertEquals("I like Gojo", d("I like Go Joe"))
+        assertEquals("Spamton is back", d("Spam tun is back"))
+    }
+
+    @Test fun possessive() {
+        assertEquals("Gojo's eyes", d("gojo's eyes"))
+        assertEquals("Sukuna's domain", d("Sakuna's domain"))
+    }
+
+    @Test fun normalWordsStay() {
+        assertEquals("We go to school", d("We go to school"))
+        assertEquals("Go home", d("Go home"))
+    }
+}

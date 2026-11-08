@@ -73,8 +73,9 @@ object Words {
     }
 
     /** Rough "sounds the same" form for comparing spellings. */
-    private fun sound(s: String): String {
+    fun sound(s: String): String {
         var t = norm(s).replace("ph", "f").replace("ck", "k").replace("kh", "h")
+            .replace(Regex("^ch(?=[rl])"), "k")      // "Chris" sounds like "Kris"
             .replace("ch", "\u0001")                 // keep "ch" as its own sound
             .replace(Regex("c(?=[eiy])"), "s")       // "ce", "ci" sound like s
             .replace('c', 'k').replace("\u0001", "ch") // other c sounds like k
@@ -85,7 +86,7 @@ object Words {
         return t
     }
 
-    private fun lev(a: String, b: String): Int {
+    fun lev(a: String, b: String): Int {
         var prev = IntArray(b.length + 1) { it }
         for (i in 1..a.length) {
             val cur = IntArray(b.length + 1)
@@ -141,21 +142,27 @@ object Words {
         for ((entry, size, isStrict) in entries) {
             val key = sound(entry)
             if (key.length < 2) continue
-            // Same number of words (may be slightly misspelled), or split/joined differently (must match exactly).
+            // Same number of words, or split/joined differently by Whisper ("Go Joe" for "Gojo").
+            // Either way it may be slightly misspelled (short words must match exactly).
             val sizes = linkedSetOf(size, size + 1, size + 2, size - 1).filter { it >= 1 }
             for (k in sizes) {
                 var i = 0
                 while (i + k <= toks.size) {
                     if ((i until i + k).any { used[it] }) { i++; continue }
                     val window = toks.subList(i, i + k)
-                    val cand = sound(window.joinToString("") { it.text })
-                    val ok = if (k == size) {
-                        val a = if (isStrict) strictAllowed(maxOf(cand.length, key.length)) else allowed(maxOf(cand.length, key.length))
-                        cand.length >= 3 && abs(cand.length - key.length) <= a && (cand == key || (cand[0] == key[0] && lev(cand, key) <= a))
-                    } else cand == key
+                    // "Gojo's" counts as "Gojo" (the 's is kept).
+                    val lastText = window.last().text
+                    val poss = Regex("(?i)['’]s$").find(lastText)?.value ?: ""
+                    val joined = window.joinToString("") { it.text }.dropLast(poss.length)
+                    val cand = sound(joined)
+                    val a = if (isStrict) strictAllowed(maxOf(cand.length, key.length)) else allowed(maxOf(cand.length, key.length))
+                    // Split differently: every piece must be a real chunk, not a stray letter.
+                    val piecesOk = k == size || window.all { it.n.length >= 2 }
+                    val ok = piecesOk && cand.length >= 3 && abs(cand.length - key.length) <= a &&
+                        (cand == key || (cand[0] == key[0] && lev(cand, key) <= a))
                     if (ok) {
                         val s = window.first().start
-                        val e = window.last().end
+                        val e = window.last().end - poss.length
                         if (text.substring(s, e) != entry) reps += Rep(s, e, entry)
                         for (j in i until i + k) used[j] = true
                         i += k
