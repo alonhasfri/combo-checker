@@ -35,7 +35,10 @@ object Ai {
 
     fun rewrite(c: Context, text: String, instruction: String): String = ask(c,
         "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
-            "the language and any names. Reply with only the new text: no quotes, no explanation.",
+            "the language and any names. If they want to sound like a person, character or style (Shakespeare, " +
+            "a video game character, a pirate…), go all the way: imitate their typical words, grammar, spelling " +
+            "quirks and catchphrases, while still saying what the person wanted to say. " +
+            "Reply with only the new text: no quotes, no explanation.",
         "Instruction: $instruction\n\nText:\n$text")
 
     fun translate(c: Context, text: String, language: String): String = ask(c,

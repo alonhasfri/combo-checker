@@ -32,6 +32,8 @@ object Commands {
         data class Translate(val language: String?) : Cmd()   // null = stop translating
         data class Reply(val instruction: String) : Cmd()
         data class Summarize(val instruction: String) : Cmd()
+        /** Rewrite everything from now on to sound like someone (null = back to normal). */
+        data class Persona(val who: String?) : Cmd()
         object Undo : Cmd()
         data class Unknown(val said: String) : Cmd()
     }
@@ -90,6 +92,19 @@ object Commands {
                 val what = mm.groupValues[2]
                 if (what == "translating" || what == "translation") return Cmd.Translate(null)
                 feature(what)?.let { return Cmd.Toggle(it, on) }
+            }
+        // "talk normally" / "stop talking like Shakespeare": persona off.
+        if (Regex("^(talk|speak|sound) normal(ly)?|^normal (mode|voice)|^stop (talking|sounding|speaking) like|^no more (persona|character)").containsMatchIn(n))
+            return Cmd.Persona(null)
+        // "make me sound like Shakespeare", "talk like Rouxls Kaard from now on", "in the style of a pirate".
+        Regex("^(?:make (?:me|it|this) sound like|sound like|talk like|speak like|write like|say it like|rewrite (?:it |this )?like|in the style of|(?:always )?(?:talk|sound) like)\\s+(.+)$")
+            .find(n)?.let { mm ->
+                val lasting = Regex("\\b(from now on|for now|until i say|always|mode)\\b").containsMatchIn(n) || n.startsWith("always")
+                // The name as you said it (keeps capitals), without "from now on".
+                val who = rest.replace(Regex("^(?i).*?\\blike\\s+|^(?i)in the style of\\s+"), "")
+                    .replace(Regex("(?i)[\\s,]*(from now on|for now|until i say.*|mode|always)[.!]*$"), "")
+                    .trim().trimEnd('.', '!', ',').ifEmpty { mm.groupValues[1] }
+                return if (lasting) Cmd.Persona(who) else Cmd.Rewrite("Make me sound like $who")
             }
         if (n.startsWith("stop translating") || n == "translation off" || n == "no translation") return Cmd.Translate(null)
         Regex("^translate (?:it |this |everything )?(?:to|into) ([\\p{L} ]+)$").find(n)?.let { return Cmd.Translate(it.groupValues[1].trim()) }

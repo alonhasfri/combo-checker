@@ -69,3 +69,17 @@ class AdaptTest {
         assertEquals("Go Joe" to "Gojo", Learn.correctionPair("I watched Go Joe fight", "I watched Gojo fight", 0, 22))
     }
 }
+
+class PersonaTest {
+    @Test fun oneTimeAndLasting() {
+        assertEquals(Cmd.Rewrite("Make me sound like Shakespeare"), Commands.parse("Out of context, make me sound like Shakespeare."))
+        assertEquals(Commands.Split("Could I get a Big Mac", Cmd.Rewrite("Make me sound like Rouxls Kaard")),
+            Commands.split("Could I get a Big Mac, out of context, make me sound like Rouxls Kaard."))
+        assertEquals(Cmd.Rewrite("Make me sound like a pirate"), Commands.parse("out of context, in the style of a pirate"))
+        assertEquals(Cmd.Persona("Rouxls Kaard"), Commands.parse("Out of context, talk like Rouxls Kaard from now on."))
+        assertEquals(Cmd.Persona("Gojo"), Commands.parse("out of context, always talk like Gojo"))
+        assertEquals(Cmd.Persona(null), Commands.parse("Out of context, talk normally."))
+        assertEquals(Cmd.Persona(null), Commands.parse("out of context, stop talking like Shakespeare"))
+        assertEquals(Cmd.Rewrite("make this shorter"), Commands.parse("Out of context, make this shorter"))
+    }
+}

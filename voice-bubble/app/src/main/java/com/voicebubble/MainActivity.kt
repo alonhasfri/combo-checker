@@ -212,6 +212,10 @@ class MainActivity : Screen() {
         ).forEach { (f, look, sub) ->
             rows += Ui.switchRow(this, look.first, look.second, f.title, sub, Features.isOn(this, f)) { on -> Features.set(this, f, on) }
         }
+        rows += Ui.row(this, R.drawable.ui_user, "orange", "Talk like", value = prefs.persona ?: "Off",
+            sub = if (prefs.persona != null && !Ai.hasKey(this)) "Needs an AI key (Settings → AI)" else "Rewrite everything you say in someone's voice") {
+            pickPersona()
+        }
         val langs = listOf("Off", "English", "Hebrew", "Spanish", "French", "German", "Italian", "Portuguese", "Arabic",
             "Russian", "Japanese", "Korean", "Chinese")
         rows += Ui.row(this, R.drawable.ui_globe, "purple", "Translate into", value = prefs.translateTo ?: "Off",
@@ -240,6 +244,7 @@ class MainActivity : Screen() {
             "• \"$w, translate to Spanish\" / \"…stop translating\"\n" +
             "• \"$w, reply\" / \"…reply in gen z\" / \"…reply like Gojo, saying I'm late\"\n" +
             "• \"$w, summarise\" (the chat on screen)\n" +
+            "• \"$w, make me sound like Shakespeare\" / \"…talk like Rouxls Kaard from now on\" / \"…talk normally\"\n" +
             "• \"$w, undo\", or just \"scratch that\"\n" +
             "Rewrite, reply, summarise and most translations need an AI key (Settings → AI). Reply, summarise and undo need the autotype version."
         ).apply { setPaddingRelative(0, dp(8), 0, 0) })
@@ -252,6 +257,25 @@ class MainActivity : Screen() {
             .setPositiveButton("Save") { _, _ -> Prefs(this).commandWord = f.text.toString().ifBlank { Commands.DEFAULT_WORD }; render() }
             .setNeutralButton("Default") { _, _ -> Prefs(this).commandWord = Commands.DEFAULT_WORD; render() }
             .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun pickPersona() {
+        val prefs = Prefs(this)
+        val presets = listOf("Shakespeare", "Rouxls Kaard", "Spamton", "Sans", "Gojo", "Sukuna", "a pirate",
+            "a medieval knight", "a news reporter", "a Gen Z teenager")
+        val items = (listOf("Off") + presets + "Someone else…").toTypedArray()
+        Ui.dialog(this).setTitle("Talk like").setItems(items) { _, i ->
+            when {
+                i == 0 -> { prefs.persona = null; render() }
+                i == items.size - 1 -> {
+                    val f = Ui.field(this, "e.g. Yoda, a cowboy, my grandma")
+                    Ui.dialog(this).setTitle("Talk like…").setView(Ui.padded(this, f))
+                        .setPositiveButton("Save") { _, _ -> prefs.persona = f.text.toString(); render() }
+                        .setNegativeButton("Cancel", null).show()
+                }
+                else -> { prefs.persona = presets[i - 1]; render() }
+            }
+        }.setNegativeButton("Cancel", null).show()
     }
 
     private fun refreshBubble() {

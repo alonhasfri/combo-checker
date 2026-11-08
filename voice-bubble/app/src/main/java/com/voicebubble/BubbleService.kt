@@ -652,6 +652,11 @@ class BubbleService : Service() {
             }
             var text = said?.let { process(it, s.style, s.cat) }
             var problem: String? = null
+            // "Talk like …" mode: every dictation rewritten in that voice.
+            val persona = prefs.persona
+            if (text != null && persona != null && Ai.hasKey(this)) {
+                text = try { Ai.rewrite(this, text, "Make me sound like $persona") } catch (e: Ai.Failure) { problem = e.message; text }
+            }
             if (text != null && s.aiTarget != null) {
                 text = try { Ai.translate(this, text, s.aiTarget) } catch (e: Ai.Failure) { problem = e.message; text }
             }
@@ -661,7 +666,7 @@ class BubbleService : Service() {
                 endSession()
                 working = false
                 setState(BubbleView.State.IDLE)
-                problem?.let { toast("Not translated: $it") }
+                problem?.let { toast("AI step skipped: $it") }
                 when {
                     failed -> toast("Couldn't turn that into text")
                     text.isNullOrEmpty() -> toast("Didn't catch any words")
@@ -818,6 +823,14 @@ class BubbleService : Service() {
             is Commands.Cmd.Rewrite -> rewrite(cmd.instruction)
             is Commands.Cmd.Reply -> reply(cmd.instruction)
             is Commands.Cmd.Summarize -> summarize(cmd.instruction)
+            is Commands.Cmd.Persona -> {
+                prefs.persona = cmd.who
+                toast(when {
+                    cmd.who == null -> "Back to your normal voice"
+                    !Ai.hasKey(this) -> "Talking like ${cmd.who} needs an AI key (Settings → AI)"
+                    else -> "Talking like ${cmd.who} until you say \"${prefs.commandWord}, talk normally\""
+                })
+            }
             is Commands.Cmd.Unknown -> toast("Didn't get that command: \"${cmd.said.take(40)}\"")
         }
     }

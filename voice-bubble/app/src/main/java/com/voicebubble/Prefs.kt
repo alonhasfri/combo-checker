@@ -132,6 +132,10 @@ class Prefs(private val ctx: Context) {
     /** Fastest thread count measured on this phone for a model file (0 = not measured yet). */
     fun threadsFor(modelFile: String) = p.getInt("threads_$modelFile", 0)
     fun setThreadsFor(modelFile: String, n: Int) = p.edit().putInt("threads_$modelFile", n).apply()
+    /** Everything you dictate is rewritten to sound like this person or style (null = off). Needs an AI key. */
+    var persona: String?
+        get() = p.getString("persona", null)
+        set(v) = p.edit().putString("persona", v?.trim()?.ifEmpty { null }).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()
