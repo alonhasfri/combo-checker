@@ -191,6 +191,8 @@ class MainActivity : Screen() {
             "EVERYTHING IN CAPITALS. Also the ABC button next to the bubble while you speak", prefs.capsLock) { on ->
             prefs.capsLock = on; refreshBubble()
         }
+        rows += Ui.switchRow(this, R.drawable.ui_type, "blue", "Live text",
+            "Shows your words next to the bubble as you talk", prefs.liveText) { on -> prefs.liveText = on }
         rows += Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",
             "Slower, more careful", prefs.extraAccuracy) { on -> prefs.extraAccuracy = on }
         return Ui.group(this, rows)
@@ -224,15 +226,30 @@ class MainActivity : Screen() {
 
     /** The spoken commands, so you know what to say. */
     private fun commandsCard(): View = Ui.paddedCard(this).apply {
-        addView(Ui.text(this@MainActivity, "Say \"out of context\" first to give a command", 15f, p.ink))
+        val w = Prefs(this@MainActivity).commandWord
+        val head = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Ui.text(this@MainActivity, "Command word: \"$w\"", 15f, p.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        head.addView(Ui.button(this@MainActivity, "Change", R.drawable.ui_edit, p.accentSoft, p.accentInk, heightDp = 38) { changeWord() })
+        addView(head)
         addView(Ui.note(this@MainActivity,
-            "• \"out of context, enable numbers and dates\" / \"…disable filler remover\"\n" +
-            "• \"out of context, rewrite, make this more polite\" / \"…make this shorter\"\n" +
-            "• \"out of context, translate to Spanish\" / \"…stop translating\"\n" +
-            "• \"out of context, reply\" or \"…reply saying I'll be late\"\n" +
-            "• \"out of context, undo\"\n" +
-            "Rewrite, reply and most translations need an AI key (Settings → AI). Reply and undo need the autotype version."
-        ).apply { setPaddingRelative(0, dp(6), 0, 0) })
+            "Say it first (or after what you dictated) to give a command:\n" +
+            "• \"$w, enable numbers and dates\" / \"…disable filler remover\"\n" +
+            "• \"$w, rewrite, make this more polite\" / \"…make this shorter\"\n" +
+            "• \"$w, translate to Spanish\" / \"…stop translating\"\n" +
+            "• \"$w, reply\" / \"…reply in gen z\" / \"…reply like Gojo, saying I'm late\"\n" +
+            "• \"$w, summarise\" (the chat on screen)\n" +
+            "• \"$w, undo\", or just \"scratch that\"\n" +
+            "Rewrite, reply, summarise and most translations need an AI key (Settings → AI). Reply, summarise and undo need the autotype version."
+        ).apply { setPaddingRelative(0, dp(8), 0, 0) })
+    }
+
+    private fun changeWord() {
+        val f = Ui.field(this, Commands.DEFAULT_WORD).apply { setText(Prefs(this@MainActivity).commandWord) }
+        Ui.dialog(this).setTitle("Command word").setMessage("A phrase you wouldn't normally say, e.g. \"hey bubble\" or \"out of context\".")
+            .setView(Ui.padded(this, f))
+            .setPositiveButton("Save") { _, _ -> Prefs(this).commandWord = f.text.toString().ifBlank { Commands.DEFAULT_WORD }; render() }
+            .setNeutralButton("Default") { _, _ -> Prefs(this).commandWord = Commands.DEFAULT_WORD; render() }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun refreshBubble() {

@@ -79,11 +79,15 @@ class StylesActivity : Screen() {
         }
         // Your own choice for particular apps (beats the category above).
         page.addView(Ui.sectionTitle(this, "Specific apps"))
-        val overrides = Styles.appStyles(this)
-        val rows = overrides.map { (pkg, st) ->
-            Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = st.title.trimEnd('.', '!')) { pickStyle(pkg) }
+        val styles = Styles.appStyles(this)
+        val langs = Styles.appLangs(this)
+        val rows = (styles.keys + langs.keys).distinct().map { pkg ->
+            val parts = listOfNotNull(styles[pkg]?.title?.trimEnd('.', '!'),
+                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code })
+            Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = parts.joinToString(" · ")) { appOptions(pkg) }
         }.toMutableList<android.view.View>()
-        rows += Ui.row(this, R.drawable.ui_plus, "blue", "Add an app", sub = "Give one app its own style, e.g. Discord → gen z") { pickApp() }
+        rows += Ui.row(this, R.drawable.ui_plus, "blue", "Add an app",
+            sub = "Its own style and/or language, e.g. Discord → gen z, WhatsApp → Hebrew") { pickApp() }
         page.addView(Ui.group(this, rows))
 
         page.addView(Ui.note(this, "Styles are made for English. In other languages only the caps and punctuation change.")
@@ -104,7 +108,29 @@ class StylesActivity : Screen() {
             .distinctBy { it.first }
             .sortedBy { it.second.lowercase() }
         Ui.dialog(this).setTitle("Choose an app").setItems(apps.map { it.second }.toTypedArray()) { _, i ->
-            pickStyle(apps[i].first)
+            appOptions(apps[i].first)
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun appOptions(pkg: String) {
+        Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style", "Language", "Remove (use the defaults)")) { _, i ->
+            when (i) {
+                0 -> pickStyle(pkg)
+                1 -> pickLang(pkg)
+                else -> { Styles.setAppStyle(this, pkg, null); Styles.setAppLang(this, pkg, null); render() }
+            }
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** The language you speak in this app (needs an "all languages" model for anything but English). */
+    private fun pickLang(pkg: String) {
+        val names = Langs.all.map { it.second } + "Same as everywhere else"
+        Ui.dialog(this).setTitle("Language in ${appName(pkg)}").setItems(names.toTypedArray()) { _, i ->
+            Styles.setAppLang(this, pkg, Langs.all.getOrNull(i)?.first)
+            val code = Langs.all.getOrNull(i)?.first
+            if (code != null && code != "en" && Models.all.none { !it.englishOnly && Models.isDownloaded(this, it) })
+                toast("Also download an \"all languages\" model (Home → Speech model) for this to work")
+            render()
         }.setNegativeButton("Cancel", null).show()
     }
 

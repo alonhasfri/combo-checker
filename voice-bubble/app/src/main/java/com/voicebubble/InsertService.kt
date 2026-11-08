@@ -32,10 +32,30 @@ class InsertService : AccessibilityService() {
     }
     override fun onInterrupt() {}
 
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val checkFix = Runnable { checkForFix() }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Remember the last text box that got focus, in case the app doesn't report focus later.
         val src = event?.source ?: return
         if (src.isEditable) lastEditable = src
+        // You edited the text box it just typed into: once you pause, see if you corrected a word.
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED && last?.node == src) {
+            main.removeCallbacks(checkFix)
+            main.postDelayed(checkFix, 1500)
+        }
+    }
+
+    /** "Go Joe" fixed by hand to "Gojo": offer to add "Gojo" to the dictionary. */
+    private fun checkForFix() {
+        val l = last ?: return
+        if (!Prefs(this).learnFixes) return
+        if (!runCatching { l.node.refresh() }.getOrDefault(false)) return
+        val now = if (l.node.isShowingHintText) "" else l.node.text?.toString().orEmpty()
+        val word = Learn.correction(l.newText, now, l.at, l.at + l.piece.length) ?: return
+        last = null   // one offer per dictation (and undo no longer applies to edited text)
+        if (Words.dictionary(this).any { it.equals(word, ignoreCase = false) }) return
+        BubbleService.instance?.offerWord(word)
     }
 
     /** Screen y of the keyboard's top edge, or -1 when no keyboard is open. */

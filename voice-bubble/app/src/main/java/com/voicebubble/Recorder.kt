@@ -65,6 +65,16 @@ class Recorder {
 
     val seconds: Int get() = synchronized(this) { size / RATE }
 
+    /** Samples recorded so far. */
+    val sampleCount: Int get() = synchronized(this) { size }
+
+    /** A copy of part of the recording so far (for working on it while you keep talking). */
+    fun copy(from: Int, to: Int): FloatArray = synchronized(this) {
+        val a = from.coerceIn(0, size)
+        val b = to.coerceIn(a, size)
+        FloatArray(b - a) { data[a + it] / 32768f }
+    }
+
     /** Stops and returns the audio as floats in -1..1. */
     fun stop(): FloatArray {
         running = false

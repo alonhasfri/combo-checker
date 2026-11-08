@@ -104,6 +104,18 @@ class Prefs(private val ctx: Context) {
     var bubbleSizeDp: Int
         get() = p.getInt("bsizeDp", when (bubbleSize) { "s" -> 58; "l" -> 88; else -> 72 })
         set(v) = p.edit().putInt("bsizeDp", v.coerceIn(44, 124)).apply()
+    /** What you say first to give a command (default "out of context"). */
+    var commandWord: String
+        get() = p.getString("cmdWord", Commands.DEFAULT_WORD)!!.ifBlank { Commands.DEFAULT_WORD }
+        set(v) = p.edit().putString("cmdWord", v.trim()).apply()
+    /** Show the words next to the bubble as they're worked out, while you're still talking. */
+    var liveText: Boolean
+        get() = p.getBoolean("liveText", true)
+        set(v) = p.edit().putBoolean("liveText", v).apply()
+    /** Offer to add words you correct to the dictionary (autotype version). */
+    var learnFixes: Boolean
+        get() = p.getBoolean("learn", true)
+        set(v) = p.edit().putBoolean("learn", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

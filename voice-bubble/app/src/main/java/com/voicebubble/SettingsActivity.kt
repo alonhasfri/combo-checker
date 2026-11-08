@@ -63,6 +63,14 @@ class SettingsActivity : Screen() {
                 "Pinch it to make it bigger or smaller. Swipe down from the top of the screen to add the Voice Bubble " +
                 "Quick Settings tile.").apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
 
+        if (BuildConfig.AUTOTYPE) {
+            page.addView(Ui.sectionTitle(this, "Learning"))
+            page.addView(Ui.group(this, listOf(
+                Ui.switchRow(this, R.drawable.ui_book, "green", "Learn from my fixes",
+                    "When you correct a word it typed, offer to add it to your dictionary", prefs.learnFixes) { on -> prefs.learnFixes = on },
+            )))
+        }
+
         // AI (optional)
         page.addView(Ui.sectionTitle(this, "AI (optional)"))
         page.addView(Ui.group(this, listOf(

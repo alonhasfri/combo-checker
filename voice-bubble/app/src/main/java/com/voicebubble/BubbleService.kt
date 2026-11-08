@@ -320,6 +320,7 @@ class BubbleService : Service() {
             p.y = if (lp.y > dpx(60)) lp.y - p.height - dpx(4) else lp.y + size + dpx(4)
             runCatching { wm.updateViewLayout(c, p) }
         }
+        positionLive()
     }
 
     /** Re-creates the bubble when "Type into apps" is switched on or off, so it moves over or under the keyboard. */
@@ -465,6 +466,9 @@ class BubbleService : Service() {
     }
 
     private fun cancelRecording() {
+        main.removeCallbacks(chunker)
+        endSession()
+        Whisper.abort()
         recorder.cancel()
         setState(BubbleView.State.IDLE)
         buzz(60)
@@ -475,21 +479,57 @@ class BubbleService : Service() {
     private fun cancelWork() {
         if (cancelled) return
         cancelled = true
+        endSession()          // drops the dictation still being worked on
         Whisper.abort()
-        view?.state = BubbleView.State.IDLE
+        working = false
+        setState(BubbleView.State.IDLE)
         buzz(60)
         toast("Cancelled")
     }
 
     // ---------------- dictation ----------------
 
+    /** Everything about one dictation, worked out when you start talking. */
+    private class Session(
+        val token: Int, val app: String?, val cat: Styles.Category, val style: Styles.Style,
+        val modelPath: String, val lang: String, val extra: Boolean, val prompt: String,
+        val toEnglish: Boolean, val aiTarget: String?, val word: String,
+    ) {
+        var cutAt = 0                       // audio before this sample is already being turned into text
+        val parts = ArrayList<String?>()    // text of each part (null = still working on it)
+        var failed = false
+    }
+
+    private var session: Session? = null
+    @Volatile private var sessionToken = 0
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var liveView: TextView? = null
+    private var offerView: TextView? = null
+
     private fun startRecording() {
-        val model = Models.byId(prefs.modelId)
-        if (!Models.isDownloaded(this, model)) {
+        var chosen = Models.byId(prefs.modelId)
+        if (!Models.isDownloaded(this, chosen)) {
             toast("Open Voice Bubble and download the speech model first")
             return
         }
         hideReplies()
+        // The app you're typing in decides the style and (if you set one) the language.
+        val app = AppDetector.current(this)
+        val appLang = Styles.langFor(this, app)
+        var lang = appLang ?: if (chosen.englishOnly) "en" else prefs.lang
+        if (lang != "en" && chosen.englishOnly) {
+            // English-only model, but this app is set to another language: use an all-languages model if you have one.
+            val alt = Models.all.firstOrNull { !it.englishOnly && Models.isDownloaded(this, it) }
+            if (alt != null) chosen = alt
+            else { toast("Download an \"all languages\" model to dictate in that language here"); lang = "en" }
+        }
+        // Translation: into English, Whisper does it on the phone; anything else goes through the AI key.
+        val target = prefs.translateTo
+        val toEnglish = target.equals("English", true) && !chosen.englishOnly
+        val aiTarget = target?.takeIf { !toEnglish && !(it.equals("English", true) && !Ai.hasKey(this)) }
+        val s = Session(++sessionToken, app, Styles.categoryOf(app), Styles.forApp(this, app),
+            Models.file(this, chosen).path, lang, prefs.extraAccuracy, Words.prompt(this),
+            toEnglish, aiTarget, prefs.commandWord)
         try {
             recorder.onMaxReached = { main.post { if (recorder.isRecording) finishRecording() } }
             recorder.start()
@@ -497,17 +537,73 @@ class BubbleService : Service() {
             toast("Can't use the microphone. Open Voice Bubble and press Start again")
             return
         }
+        session = s
         buzz(30)
         Sounds.start(prefs.sound)
         setState(BubbleView.State.RECORDING)
         main.post(ticker)
+        main.postDelayed(chunker, 1000)
+    }
+
+    /**
+     * While you talk: at each pause, the part said so far goes off to be turned into text, so when you
+     * tap stop only the last bit is left. Very long stretches without a pause are cut at the quietest moment.
+     */
+    private val chunker = object : Runnable {
+        override fun run() {
+            val s = session ?: return
+            if (!recorder.isRecording) return
+            val total = recorder.sampleCount
+            if (total - s.cutAt > Recorder.RATE * 4) {
+                val seg = recorder.copy(s.cutAt, total)
+                var cut = Audio.findCut(seg)
+                if (cut < 0 && seg.size > Recorder.RATE * 26) cut = quietestCut(seg)
+                if (cut > 0) {
+                    s.cutAt += cut
+                    transcribePart(s, seg.copyOf(cut))
+                }
+            }
+            main.postDelayed(this, 400)
+        }
+    }
+
+    /** The quietest 100 ms between 15 and 26 seconds in. */
+    private fun quietestCut(seg: FloatArray): Int {
+        val rms = Audio.frameRms(seg)
+        val from = 150.coerceAtMost(rms.size - 1)
+        val to = 260.coerceAtMost(rms.size - 1)
+        var best = from
+        for (f in from..to) if (rms[f] < rms[best]) best = f
+        return best * Audio.FRAME + Audio.FRAME / 2
+    }
+
+    /** Turns one part into text in the background (parts run one after another, in order). */
+    private fun transcribePart(s: Session, audio: FloatArray) {
+        val idx = synchronized(s) { s.parts.add(null); s.parts.size - 1 }
+        worker.execute {
+            if (s.token != sessionToken) return@execute
+            val trimmed = Audio.trimSilence(audio)
+            // The part before helps Whisper carry on the sentence correctly.
+            val prev = synchronized(s) { s.parts.take(idx).filterNotNull().lastOrNull().orEmpty() }.takeLast(200)
+            val txt = if (hasSpeech(trimmed)) runCatching {
+                Whisper.transcribe(s.modelPath, trimmed, s.lang, (s.prompt + " " + prev).trim(), s.extra, s.toEnglish)
+            }.getOrNull() else ""
+            synchronized(s) {
+                if (txt == null) s.failed = true
+                s.parts[idx] = txt?.let { clean(it) } ?: ""
+            }
+            main.post { if (s.token == sessionToken) showLive(s) }
+        }
     }
 
     private fun finishRecording() {
+        val s = session
+        main.removeCallbacks(chunker)
         val audio = recorder.stop()
         buzz(30)
         Sounds.stop(prefs.sound)
-        if (!hasSpeech(audio)) {
+        if (s == null || !hasSpeech(audio)) {
+            endSession()
             setState(BubbleView.State.IDLE)
             toast("Didn't hear anything")
             return
@@ -516,64 +612,136 @@ class BubbleService : Service() {
         working = true
         setState(BubbleView.State.WORKING)
         val caps = prefs.capsLock
-        val chosenModel = Models.byId(prefs.modelId)
-        val model = Models.file(this, chosenModel).path
-        // English-only models must be told English; with the others, use your language setting.
-        val lang = if (chosenModel.englishOnly) "en" else prefs.lang
-        val extra = prefs.extraAccuracy
-        val prompt = Words.prompt(this)
-        // Translation: into English, Whisper does it on the phone; anything else goes through the AI key.
-        val target = prefs.translateTo
-        val whisperToEnglish = target.equals("English", true) && !chosenModel.englishOnly
-        val aiTarget = target?.takeIf { !whisperToEnglish && !(it.equals("English", true) && !Ai.hasKey(this)) }
-        // The style for the app you're typing in.
-        val app = AppDetector.current(this)
-        val cat = Styles.categoryOf(app)
-        val style = Styles.forApp(this, app)
         val seconds = audio.size / Recorder.RATE.toFloat()
-        Thread {
-            val raw = runCatching { Whisper.transcribe(model, audio, lang, prompt, extra, whisperToEnglish) }.getOrNull()
-            val said = raw?.let { clean(it) }?.takeIf { it.isNotEmpty() }
+        if (s.cutAt < audio.size) transcribePart(s, audio.copyOfRange(s.cutAt, audio.size))
+        // Runs after every part is done (one worker, in order).
+        worker.execute {
+            if (s.token != sessionToken) return@execute
+            val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
+            val said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
+            val failed = said == null && synchronized(s) { s.failed }
             // Just "scratch that" on its own: take back the last dictation.
-            val split = said?.let { if (Commands.isScratch(it)) Commands.Split("", Commands.Cmd.Undo) else Commands.split(it) }
+            val split = said?.let { if (Commands.isScratch(it)) Commands.Split("", Commands.Cmd.Undo) else Commands.split(it, s.word) }
             if (split != null) {
                 // Text said before the command gets the usual treatment first.
-                val before = split.before.takeIf { it.isNotEmpty() }?.let { process(it, style, cat) }
+                val before = split.before.takeIf { it.isNotEmpty() }?.let { process(it, s.style, s.cat) }
                 main.post {
+                    if (s.token != sessionToken) return@post
+                    endSession()
                     working = false
                     setState(BubbleView.State.IDLE)
-                    if (cancelled) { cancelled = false; return@post }
                     val cmd = split.cmd
                     when {
                         before == null -> runCommand(cmd)
                         // "…text…, out of context, make this longer": rewrite what you just said, then type it.
                         cmd is Commands.Cmd.Rewrite -> rewrite(cmd.instruction, before)
-                        else -> { deliver(before); Stats.record(this, before, seconds, app); runCommand(cmd) }
+                        else -> { deliver(before); Stats.record(this, before, seconds, s.app); runCommand(cmd) }
                     }
                 }
-                return@Thread
+                return@execute
             }
-            var text = said?.let { process(it, style, cat) }
+            var text = said?.let { process(it, s.style, s.cat) }
             var problem: String? = null
-            if (text != null && aiTarget != null && !cancelled) {
-                text = try { Ai.translate(this, text, aiTarget) } catch (e: Ai.Failure) { problem = e.message; text }
+            if (text != null && s.aiTarget != null) {
+                text = try { Ai.translate(this, text, s.aiTarget) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (caps) text = text?.uppercase()
             main.post {
+                if (s.token != sessionToken) return@post
+                endSession()
                 working = false
                 setState(BubbleView.State.IDLE)
-                if (cancelled) { cancelled = false; return@post }
                 problem?.let { toast("Not translated: $it") }
                 when {
-                    raw == null -> toast("Couldn't turn that into text")
+                    failed -> toast("Couldn't turn that into text")
                     text.isNullOrEmpty() -> toast("Didn't catch any words")
                     else -> {
                         deliver(text!!)
-                        Stats.record(this, text!!, seconds, app)
+                        Stats.record(this, text!!, seconds, s.app)
                     }
                 }
             }
-        }.apply { name = "whisper" }.start()
+        }
+    }
+
+    /** Forget the current dictation: anything still being worked on is dropped. */
+    private fun endSession() {
+        session = null
+        sessionToken++
+        hideLive()
+    }
+
+    // ----- live text next to the bubble -----
+
+    private fun showLive(s: Session) {
+        if (!prefs.liveText) return
+        val text = synchronized(s) { s.parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" ") }
+        if (text.isBlank()) return
+        val v = liveView ?: TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.START
+            setPadding(dpx(14), dpx(10), dpx(14), dpx(10))
+            background = GradientDrawable().apply { cornerRadius = dpx(16).toFloat(); setColor(Color.argb(235, 26, 31, 51)) }
+        }.also { tv ->
+            val dm = resources.displayMetrics
+            val p = overlayParams(minOf(dm.widthPixels - dpx(24), dpx(340)), WindowManager.LayoutParams.WRAP_CONTENT)
+            runCatching { wm.addView(tv, p) }.onSuccess { liveView = tv }
+        }
+        v.text = text + if (recorder.isRecording) " …" else ""
+        positionLive()
+    }
+
+    private fun positionLive() {
+        val v = liveView ?: return
+        val p = v.layoutParams as? WindowManager.LayoutParams ?: return
+        val dm = resources.displayMetrics
+        p.x = (lp.x + size / 2 - p.width / 2).coerceIn(dpx(12), maxOf(dpx(12), dm.widthPixels - p.width - dpx(12)))
+        val h = if (v.height > 0) v.height else dpx(70)
+        p.y = if (lp.y > h + dpx(16)) lp.y - h - dpx(10) else lp.y + size + dpx(10)
+        runCatching { wm.updateViewLayout(v, p) }
+    }
+
+    private fun hideLive() {
+        liveView?.let { runCatching { wm.removeView(it) } }
+        liveView = null
+    }
+
+    // ----- "add this word to your dictionary?" after you correct one -----
+
+    /** Called by the typing service when you fixed a word it typed. */
+    fun offerWord(word: String) {
+        main.post {
+            offerView?.let { runCatching { wm.removeView(it) } }
+            val v = TextView(this).apply {
+                text = "Add \u201c$word\u201d to your dictionary?  ✓"
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                setPadding(dpx(16), dpx(10), dpx(16), dpx(10))
+                background = GradientDrawable().apply { cornerRadius = dpx(18).toFloat(); setColor(Color.rgb(58, 91, 217)) }
+                setOnClickListener {
+                    Words.saveDictionary(this@BubbleService, Words.dictionary(this@BubbleService) + word)
+                    toast("\u201c$word\u201d added ✓")
+                    buzz(15)
+                    runCatching { wm.removeView(this) }
+                    offerView = null
+                }
+            }
+            val dm = resources.displayMetrics
+            val p = overlayParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT).apply {
+                x = dpx(16)
+                y = maxOf(dpx(40), lp.y - dpx(56))
+            }
+            if (runCatching { wm.addView(v, p) }.isSuccess) {
+                offerView = v
+                main.postDelayed({
+                    if (offerView == v) { runCatching { wm.removeView(v) }; offerView = null }
+                }, 8000)
+            }
+            if (dm.widthPixels <= 0) return@post
+        }
     }
 
     /** Voice commands, emoji, fillers, numbers → style → your dictionary and shortcuts. */
@@ -636,6 +804,7 @@ class BubbleService : Service() {
             }
             is Commands.Cmd.Rewrite -> rewrite(cmd.instruction)
             is Commands.Cmd.Reply -> reply(cmd.instruction)
+            is Commands.Cmd.Summarize -> summarize(cmd.instruction)
             is Commands.Cmd.Unknown -> toast("Didn't get that command: \"${cmd.said.take(40)}\"")
         }
     }
@@ -673,6 +842,51 @@ class BubbleService : Service() {
             val options = out.lines().filter { it.isNotBlank() }
             if (options.isEmpty()) toast("No suggestions this time") else showReplies(options)
         }
+    }
+
+    /** "summarise": a short summary of the chat on screen, with a Copy button. */
+    private fun summarize(instruction: String) {
+        val svc = InsertService.instance ?: run {
+            toast(if (BuildConfig.AUTOTYPE) "Summaries need \"Type into apps\" on" else "Summaries need the autotype version")
+            return
+        }
+        if (!Ai.hasKey(this)) { toast("Summaries need an AI key (Settings → AI)"); return }
+        val screen = svc.screenText()
+        if (screen.isBlank()) { toast("Couldn't read this screen"); return }
+        aiJob({ Ai.summary(this, screen, instruction) }) { out -> showSummary(out) }
+    }
+
+    private fun showSummary(text: String) {
+        hideReplies()
+        val dm = resources.displayMetrics
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpx(14), dpx(12), dpx(14), dpx(12))
+            background = GradientDrawable().apply { cornerRadius = dpx(20).toFloat(); setColor(Color.argb(245, 26, 31, 51)) }
+        }
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(TextView(this).apply {
+            this.text = "Summary"; setTextColor(Color.rgb(169, 187, 255)); textSize = 13f; typeface = Typeface.DEFAULT_BOLD
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(TextView(this).apply {
+            this.text = "Copy"; setTextColor(Color.WHITE); textSize = 14f; typeface = Typeface.DEFAULT_BOLD
+            setPadding(dpx(12), dpx(4), dpx(12), dpx(4))
+            setOnClickListener { copyOut(text); toast("Copied"); hideReplies() }
+        })
+        head.addView(TextView(this).apply {
+            this.text = "✕"; setTextColor(Color.WHITE); textSize = 16f; setPadding(dpx(12), 0, dpx(4), 0)
+            setOnClickListener { hideReplies() }
+        })
+        panel.addView(head)
+        panel.addView(TextView(this).apply {
+            this.text = text; setTextColor(Color.WHITE); textSize = 15f; setPadding(0, dpx(8), 0, 0)
+            setLineSpacing(0f, 1.15f)
+        })
+        val p = overlayParams(dm.widthPixels - dpx(24), WindowManager.LayoutParams.WRAP_CONTENT).apply {
+            x = dpx(12); y = dpx(60)
+        }
+        replyPanel = panel
+        runCatching { wm.addView(panel, p) }.onFailure { replyPanel = null }
     }
 
     /** Runs an AI request with the bubble spinning; tap the bubble to cancel. */
@@ -827,6 +1041,10 @@ class BubbleService : Service() {
         if (working) Whisper.abort()
         view?.let { runCatching { wm.removeView(it) } }
         removeExtras()
+        hideLive()
+        offerView?.let { runCatching { wm.removeView(it) } }
+        offerView = null
+        worker.shutdownNow()
         view = null
         tileChanged()
         // Free the model's memory (a few hundred MB) once the bubble is gone.

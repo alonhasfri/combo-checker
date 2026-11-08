@@ -48,11 +48,20 @@ object Ai {
         val out = ask(c,
             "You help someone answer a chat on their phone. You see the text visible on their screen " +
                 "(it may include buttons and other noise; focus on the conversation). Suggest exactly 3 different " +
-                "short replies they could send next, written as they would text. One per line, no numbering, no quotes.",
-            (if (instruction.isNotBlank()) "What I want to say: $instruction\n\n" else "") + "Screen:\n$chat")
+                "short replies they could send next, written as they would text. Their request may say what to reply, " +
+                "how to say it (a style like gen z slang, formal or flirty, or a character to sound like), or both: follow it. " +
+                "One reply per line, no numbering, no quotes.",
+            (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat")
         return out.lines().map { it.trim().removePrefix("-").removePrefix("•").trim().trim('"') }
             .filter { it.isNotEmpty() }.take(3)
     }
+
+    /** A short summary of the conversation on screen. */
+    fun summary(c: Context, chat: String, instruction: String): String = ask(c,
+        "You summarise what's on someone's phone screen, usually a chat. Ignore buttons and other noise. " +
+            "Give 2 to 5 short bullet points (start each with •) covering what was said and anything they need to " +
+            "answer or do. Plain text only.",
+        (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat")
 
     /** Blocking call: run it off the main thread. Throws [Failure] with a message you can show. */
     private fun ask(c: Context, system: String, user: String): String {

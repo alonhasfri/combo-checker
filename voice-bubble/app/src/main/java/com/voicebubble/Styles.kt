@@ -76,6 +76,25 @@ object Styles {
         sp(c).edit().putString("appStyles", o.toString()).apply()
     }
 
+    // ----- language for specific apps -----
+
+    /** Apps with their own language, package → Whisper language code (e.g. "he"). */
+    fun appLangs(c: Context): Map<String, String> {
+        val o = try { org.json.JSONObject(sp(c).getString("appLangs", "{}")!!) } catch (e: Exception) { org.json.JSONObject() }
+        val out = LinkedHashMap<String, String>()
+        for (k in o.keys()) out[k] = o.optString(k)
+        return out
+    }
+
+    fun setAppLang(c: Context, pkg: String, lang: String?) {
+        val o = org.json.JSONObject()
+        appLangs(c).forEach { (k, v) -> if (k != pkg) o.put(k, v) }
+        if (lang != null) o.put(pkg, lang)
+        sp(c).edit().putString("appLangs", o.toString()).apply()
+    }
+
+    fun langFor(c: Context, pkg: String?): String? = pkg?.let { appLangs(c)[it] }
+
     /** The style to use in this app: its own if you set one, otherwise its category's. */
     fun forApp(c: Context, pkg: String?): Style =
         pkg?.let { appStyles(c)[it] } ?: get(c, categoryOf(pkg))
