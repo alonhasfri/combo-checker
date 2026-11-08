@@ -147,6 +147,13 @@ class Prefs(private val ctx: Context) {
     var instantShakespeare: Boolean
         get() = p.getBoolean("instantShakespeare", false)
         set(v) = p.edit().putBoolean("instantShakespeare", v).apply()
+    /** "whisper" or "live" (streaming, types as you talk; English only). */
+    var engine: String
+        get() = p.getString("engine", "whisper")!!
+        set(v) = p.edit().putString("engine", v).apply()
+    var liveModelId: String
+        get() = p.getString("liveModel", "kroko")!!
+        set(v) = p.edit().putString("liveModel", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx" + orient, -1)
         set(v) = p.edit().putInt("bx" + orient, v).apply()

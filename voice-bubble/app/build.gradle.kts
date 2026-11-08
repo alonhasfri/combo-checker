@@ -98,5 +98,8 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // Optional AI features (rewrite, translate, reply) with your own Claude key.
     implementation("com.anthropic:anthropic-java:3.6.0")
+    // The Live engine (sherpa-onnx streaming speech recognition, Apache-2.0). The CI build downloads
+    // the release AAR into app/libs/ (too big to keep in git).
+    implementation(files("libs/sherpa-onnx.aar"))
     testImplementation("junit:junit:4.13.2")
 }

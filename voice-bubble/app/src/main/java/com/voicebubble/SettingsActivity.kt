@@ -22,7 +22,7 @@ class SettingsActivity : Screen() {
                 }.setNegativeButton("Cancel", null).show()
             },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = "${prefs.bubbleSizeDp} dp",
-                sub = "Or pinch the bubble") {
+                sub = "Bigger or smaller bubble") {
                 val sizes = listOf(52 to "Small", 72 to "Medium", 92 to "Large", 112 to "Extra large")
                 val cur = sizes.indexOfFirst { it.first >= prefs.bubbleSizeDp }.let { if (it < 0) sizes.size - 1 else it }
                 Ui.dialog(this).setTitle("Bubble size").setSingleChoiceItems(sizes.map { it.second }.toTypedArray(), cur) { d, i ->

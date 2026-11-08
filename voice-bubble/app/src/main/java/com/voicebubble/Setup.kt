@@ -18,7 +18,11 @@ object Setup {
 
     fun hasMic(c: Context) = c.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     fun hasOverlay(c: Context) = Settings.canDrawOverlays(c)
-    fun modelReady(c: Context) = Models.isDownloaded(c, Models.byId(Prefs(c).modelId))
+    fun modelReady(c: Context): Boolean {
+        val p = Prefs(c)
+        return Models.isDownloaded(c, Models.byId(p.modelId)) ||
+            (p.engine == "live" && Live.isDownloaded(c, Live.byId(p.liveModelId)))
+    }
 
     fun askMic(a: Activity) {
         val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)

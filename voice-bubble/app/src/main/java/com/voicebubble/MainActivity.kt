@@ -164,9 +164,11 @@ class MainActivity : Screen() {
     private fun quickSettings(): View {
         val prefs = Prefs(this)
         val model = Models.byId(prefs.modelId)
+        val live = prefs.engine == "live"
         val rows = mutableListOf<View>(
             Ui.row(this, R.drawable.ui_cpu, "purple", "Speech model",
-                value = model.title.substringBefore(" (") + if (Setup.modelReady(this)) "" else " · download",
+                value = (if (live) Live.byId(prefs.liveModelId).title else model.title).substringBefore(" (") +
+                    if (Setup.modelReady(this)) "" else " · download",
                 valueColor = if (Setup.modelReady(this)) null else p.danger) {
                 startActivity(Intent(this, ModelActivity::class.java))
             },

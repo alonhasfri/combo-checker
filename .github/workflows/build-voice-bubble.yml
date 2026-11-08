@@ -21,6 +21,12 @@ jobs:
       - name: Install NDK and CMake
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;26.3.11579264" "cmake;3.22.1" > /dev/null
+      - name: Download sherpa-onnx (Live engine)
+        run: |
+          mkdir -p voice-bubble/app/libs
+          curl -fsSL --retry 4 -o voice-bubble/app/libs/sherpa-onnx.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar
+          ls -l voice-bubble/app/libs
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7

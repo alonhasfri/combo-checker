@@ -4,3 +4,4 @@ app/build/
 app/.cxx/
 local.properties
 *.keystore
+app/libs/*.aar

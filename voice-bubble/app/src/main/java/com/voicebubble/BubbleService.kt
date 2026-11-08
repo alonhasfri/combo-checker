@@ -124,6 +124,7 @@ class BubbleService : Service() {
         updateBubble()
         tileChanged()
         // Load the model now so the first transcription doesn't wait for it.
+        if (prefs.engine == "live") Thread { Live.ensureLoaded(this, Live.byId(prefs.liveModelId)) }.start()
         Thread {
             val m = Models.byId(prefs.modelId)
             val path = Models.file(this, m).path
@@ -371,7 +372,6 @@ class BubbleService : Service() {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
         var downX = 0f; var downY = 0f; var startX = 0; var startY = 0
         var moveMode = false; var held = false; var slid = false; var pinched = false
-        var liveDp = 0f
         val hold = Runnable {
             held = true
             when {
@@ -389,24 +389,7 @@ class BubbleService : Service() {
                 }
             }
         }
-        val scaler = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScaleBegin(d: ScaleGestureDetector): Boolean {
-                pinched = true
-                main.removeCallbacks(hold)
-                liveDp = prefs.bubbleSizeDp.toFloat()
-                return true
-            }
-            override fun onScale(d: ScaleGestureDetector): Boolean {
-                liveDp = (liveDp * d.scaleFactor).coerceIn(44f, 124f)
-                resizeTo(dpx(liveDp.toInt()))
-                return true
-            }
-            override fun onScaleEnd(d: ScaleGestureDetector) {
-                prefs.bubbleSizeDp = liveDp.toInt()
-            }
-        })
         v.setOnTouchListener { _, e ->
-            scaler.onTouchEvent(e)
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY; startX = lp.x; startY = lp.y
@@ -523,6 +506,9 @@ class BubbleService : Service() {
         val modelPath: String, val lang: String, val extra: Boolean, val prompt: String,
         val toEnglish: Boolean, val aiTarget: String?, val word: String,
     ) {
+        /** Set when the Live (streaming) engine is used: text grows while you talk. */
+        var live: Live.Session? = null
+        var fed = 0                         // Live: samples already given to it
         var cutAt = 0                       // audio before this sample is already being turned into text
         val parts = ArrayList<String?>()    // text of each part (null = still working on it)
         var failed = false
@@ -536,7 +522,7 @@ class BubbleService : Service() {
 
     private fun startRecording() {
         var chosen = Models.byId(prefs.modelId)
-        if (!Models.isDownloaded(this, chosen)) {
+        if (!Setup.modelReady(this)) {
             toast("Open Voice Bubble and download the speech model first")
             return
         }
@@ -560,10 +546,16 @@ class BubbleService : Service() {
             // Your command word first, so Whisper writes it right; then your words and style.
             listOf(prefs.commandWord + ".", Words.prompt(this), Adapt.prompt(this)).filter { it.isNotBlank() }.joinToString(" "),
             toEnglish, aiTarget, prefs.commandWord)
+        // Live engine: English, no on-phone translation (Whisper does that), model downloaded and loaded.
+        if (prefs.engine == "live" && lang == "en" && !toEnglish) {
+            val lm = Live.byId(prefs.liveModelId)
+            if (Live.isDownloaded(this, lm) && Live.ensureLoaded(this, lm)) s.live = Live.start()
+        }
         try {
             recorder.onMaxReached = { main.post { if (recorder.isRecording) finishRecording() } }
             recorder.start()
         } catch (e: Exception) {
+            s.live?.cancel()
             toast("Can't use the microphone. Open Voice Bubble and press Start again")
             return
         }
@@ -572,7 +564,7 @@ class BubbleService : Service() {
         Sounds.start(prefs.sound)
         setState(BubbleView.State.RECORDING)
         main.post(ticker)
-        main.postDelayed(chunker, 1000)
+        main.postDelayed(chunker, if (s.live != null) 150 else 1000)
     }
 
     /**
@@ -583,6 +575,21 @@ class BubbleService : Service() {
         override fun run() {
             val s = session ?: return
             if (!recorder.isRecording) return
+            s.live?.let { live ->
+                // Live: hand over the new audio; the words appear as it goes.
+                val total = recorder.sampleCount
+                if (total > s.fed) {
+                    val chunk = recorder.copy(s.fed, total)
+                    s.fed = total
+                    worker.execute {
+                        if (s.token != sessionToken) return@execute
+                        val text = live.feed(chunk)
+                        main.post { if (s.token == sessionToken) showLiveText(text) }
+                    }
+                }
+                main.postDelayed(this, 150)
+                return
+            }
             val total = recorder.sampleCount
             if (total - s.cutAt > Recorder.RATE * 5 / 2) {
                 val seg = recorder.copy(s.cutAt, total)
@@ -643,13 +650,23 @@ class BubbleService : Service() {
         setState(BubbleView.State.WORKING)
         val caps = prefs.capsLock
         val seconds = audio.size / Recorder.RATE.toFloat()
-        if (s.cutAt < audio.size) transcribePart(s, audio.copyOfRange(s.cutAt, audio.size))
+        val live = s.live
+        if (live == null && s.cutAt < audio.size) transcribePart(s, audio.copyOfRange(s.cutAt, audio.size))
         // Runs after every part is done (one worker, in order).
         worker.execute {
             if (s.token != sessionToken) return@execute
-            val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
-            val said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
-            val failed = said == null && synchronized(s) { s.failed }
+            val said: String?
+            val failed: Boolean
+            if (live != null) {
+                // Live: most of it is already done; add the last bit and finish.
+                if (audio.size > s.fed) live.feed(audio.copyOfRange(s.fed, audio.size))
+                said = clean(live.finish()).takeIf { it.isNotEmpty() }
+                failed = false
+            } else {
+                val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
+                said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
+                failed = said == null && synchronized(s) { s.failed }
+            }
             if (said != null) Adapt.observe(this, said)
             // Just "scratch that" on its own: take back the last dictation.
             val split = said?.let { if (Commands.isScratch(it)) Commands.Split("", Commands.Cmd.Undo) else Commands.split(it, s.word) }
@@ -704,6 +721,7 @@ class BubbleService : Service() {
 
     /** Forget the current dictation: anything still being worked on is dropped. */
     private fun endSession() {
+        session?.live?.let { l -> worker.execute { l.cancel() } }
         session = null
         sessionToken++
         hideLive()
@@ -711,9 +729,11 @@ class BubbleService : Service() {
 
     // ----- live text next to the bubble -----
 
-    private fun showLive(s: Session) {
+    private fun showLive(s: Session) =
+        showLiveText(synchronized(s) { s.parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" ") })
+
+    private fun showLiveText(text: String) {
         if (!prefs.liveText) return
-        val text = synchronized(s) { s.parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" ") }
         if (text.isBlank()) return
         val v = liveView ?: TextView(this).apply {
             setTextColor(Color.WHITE)
