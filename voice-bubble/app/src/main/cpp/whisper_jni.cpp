@@ -51,6 +51,9 @@ Java_com_voicebubble_Whisper_nativeTranscribe(JNIEnv *env, jobject, jlong ptr, j
     // Whisper normally works on a full 30 s window even for a 3 s sentence. Limiting the encoder
     // to the length actually spoken is the biggest speed-up for short dictations.
     p.audio_ctx = audioCtx;
+    // When unsure, Whisper normally decodes the part again at higher "temperature", which can
+    // double the time. Quick mode keeps the first answer; Extra accuracy (beams > 1) allows retries.
+    if (beams <= 1) p.temperature_inc = 0.0f;
     p.n_threads = threads;
     p.print_realtime = false;
     p.print_progress = false;

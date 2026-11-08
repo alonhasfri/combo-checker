@@ -28,14 +28,18 @@ class ModelActivity : Screen() {
                 "If you speak English, pick an English model: they're more accurate and never mistake your language.")
             .apply { setPaddingRelative(dp(4), dp(14), dp(4), 0) })
 
-        Models.all.forEach { m ->
+        Models.shown().forEach { m ->
             val chosen = prefs.modelId == m.id
             val have = Models.isDownloaded(this, m)
             val card = Ui.paddedCard(this)
             (card.background as GradientDrawable).setStroke(dp(if (chosen) 2 else 1), if (chosen) p.accent else p.border)
             val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val accurate = m.id.startsWith("small")
-            head.addView(Ui.tile(this, if (accurate) R.drawable.ui_target else R.drawable.ui_zap, if (accurate) "purple" else "orange"))
+            head.addView(when {
+                m.id.startsWith("turbo") -> Ui.tile(this, R.drawable.ui_spark, "red")
+                accurate -> Ui.tile(this, R.drawable.ui_target, "purple")
+                else -> Ui.tile(this, R.drawable.ui_zap, "orange")
+            })
             val col = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPaddingRelative(dp(12), 0, dp(8), 0)

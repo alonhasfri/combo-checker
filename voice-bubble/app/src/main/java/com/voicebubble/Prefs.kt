@@ -7,12 +7,23 @@ data class Model(
     val id: String, val title: String, val detail: String, val file: String, val bytes: Long,
     /** English-only models are more accurate in English and never mis-guess the language. */
     val englishOnly: Boolean = false,
+    /** Only offered on phones with the i8mm maths instructions, where this file format is fastest. */
+    val fastOnly: Boolean = false,
+    /** Where to download it, when it isn't in the main whisper.cpp model collection. */
+    val source: String? = null,
 ) {
-    val url get() = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
+    val url get() = source ?: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$file"
 }
 
 object Models {
     val all = listOf(
+        Model("small.en-fast", "Fastest accurate · English (for your phone)",
+            "Whisper small, English only · 264 MB · uses your phone's fast maths instructions",
+            "ggml-small.en-q8_0.bin", 264_477_561L, englishOnly = true, fastOnly = true),
+        Model("turbo.en", "Turbo · English",
+            "distil-small.en · 336 MB · writes 3-5× faster on long messages, nearly as accurate",
+            "ggml-distil-small.en.bin", 336_191_657L, englishOnly = true,
+            source = "https://huggingface.co/distil-whisper/distil-small.en/resolve/main/ggml-distil-small.en.bin"),
         Model("small.en", "Accurate · English (recommended)", "Whisper small, English only · 190 MB · best results",
             "ggml-small.en-q5_1.bin", 190_098_681L, englishOnly = true),
         Model("base.en", "Fast · English", "Whisper base, English only · 60 MB · quickest",
@@ -22,7 +33,9 @@ object Models {
         Model("base", "Fast · all languages", "Whisper base · 60 MB · quick but makes more mistakes",
             "ggml-base-q5_1.bin", 59_707_625L),
     )
-    fun byId(id: String?) = all.firstOrNull { it.id == id } ?: all[0]
+    /** The models this phone can use (the fast-maths one only where it helps). */
+    fun shown(): List<Model> = all.filter { !it.fastOnly || Cpu.hasI8mm() }
+    fun byId(id: String?) = all.firstOrNull { it.id == id } ?: shown()[0]
     fun file(ctx: Context, m: Model) = File(File(ctx.filesDir, "models").apply { mkdirs() }, m.file)
     fun isDownloaded(ctx: Context, m: Model) = file(ctx, m).let { it.exists() && it.length() == m.bytes }
 }
@@ -41,7 +54,7 @@ class Prefs(private val ctx: Context) {
     /** Never picked: use a model that's already downloaded (older builds' default), else the recommended one. */
     var modelId: String
         get() = p.getString("model", null)
-            ?: Models.all.firstOrNull { Models.isDownloaded(ctx, it) }?.id ?: Models.all[0].id
+            ?: Models.shown().firstOrNull { Models.isDownloaded(ctx, it) }?.id ?: Models.shown()[0].id
         set(v) = p.edit().putString("model", v).apply()
     /** Slower but more careful: full 30 s window and several guesses. */
     var extraAccuracy: Boolean
@@ -116,6 +129,9 @@ class Prefs(private val ctx: Context) {
     var learnFixes: Boolean
         get() = p.getBoolean("learn", true)
         set(v) = p.edit().putBoolean("learn", v).apply()
+    /** Fastest thread count measured on this phone for a model file (0 = not measured yet). */
+    fun threadsFor(modelFile: String) = p.getInt("threads_$modelFile", 0)
+    fun setThreadsFor(modelFile: String, n: Int) = p.edit().putInt("threads_$modelFile", n).apply()
     var bubbleX: Int
         get() = p.getInt("bx", -1)
         set(v) = p.edit().putInt("bx", v).apply()

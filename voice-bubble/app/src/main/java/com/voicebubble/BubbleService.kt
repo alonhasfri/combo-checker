@@ -124,7 +124,15 @@ class BubbleService : Service() {
         updateBubble()
         tileChanged()
         // Load the model now so the first transcription doesn't wait for it.
-        Thread { Whisper.ensureLoaded(Models.file(this, Models.byId(prefs.modelId)).path) }.start()
+        Thread {
+            val m = Models.byId(prefs.modelId)
+            val path = Models.file(this, m).path
+            Whisper.ensureLoaded(path)
+            // Once per phone and model: find the fastest number of processor threads.
+            val known = prefs.threadsFor(m.file)
+            if (known > 0) Whisper.threads = known
+            else if (Models.isDownloaded(this, m)) prefs.setThreadsFor(m.file, Whisper.benchmark(path))
+        }.start()
         // Not sticky: if Android kills it, it can't get the microphone back without the app anyway.
         return START_NOT_STICKY
     }
@@ -554,9 +562,9 @@ class BubbleService : Service() {
             val s = session ?: return
             if (!recorder.isRecording) return
             val total = recorder.sampleCount
-            if (total - s.cutAt > Recorder.RATE * 4) {
+            if (total - s.cutAt > Recorder.RATE * 5 / 2) {
                 val seg = recorder.copy(s.cutAt, total)
-                var cut = Audio.findCut(seg)
+                var cut = Audio.findCut(seg, minSpeechSec = 2.0, minPauseSec = 0.3)
                 if (cut < 0 && seg.size > Recorder.RATE * 26) cut = quietestCut(seg)
                 if (cut > 0) {
                     s.cutAt += cut

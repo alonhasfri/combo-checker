@@ -11,7 +11,13 @@ fun audioCtxFor(samples: Int): Int {
 
 /** On-device Whisper speech recognition (whisper.cpp). Keeps one model loaded in memory. */
 object Whisper {
-    init { System.loadLibrary("voicebubble") }
+    /** True when this phone runs the faster engine build (has the i8mm maths instructions). */
+    val fastCpu: Boolean = Cpu.hasI8mm()
+
+    init { System.loadLibrary(if (fastCpu) "voicebubble_fast" else "voicebubble_base") }
+
+    /** Processor threads to use (measured once per phone; see [benchmark]). */
+    @Volatile var threads: Int = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
 
     private external fun nativeLoad(path: String): Long
     private external fun nativeFree(ptr: Long)
@@ -42,6 +48,26 @@ object Whisper {
         loadedPath = null
     }
 
+    /**
+     * Tries 2, 4, 6 and 8 threads on a few seconds of test sound and returns the fastest.
+     * Phones differ a lot (how many fast cores, how they share heat), so measuring beats guessing.
+     */
+    fun benchmark(modelPath: String): Int = synchronized(lock) {
+        if (!ensureLoaded(modelPath)) return threads
+        val cores = Runtime.getRuntime().availableProcessors()
+        val audio = FloatArray(16000 * 4) { i -> (0.2 * Math.sin(2 * Math.PI * 180 * i / 16000.0) * Math.sin(Math.PI * i / 8000.0)).toFloat() }
+        var best = threads
+        var bestMs = Long.MAX_VALUE
+        for (t in listOf(2, 4, 6, 8).filter { it <= cores }) {
+            val start = System.nanoTime()
+            nativeTranscribe(ctx, audio, "en", "", t, 512, 1, false)
+            val ms = (System.nanoTime() - start) / 1_000_000
+            if (ms < bestMs * 0.95) { bestMs = ms; best = t }   // only switch for a real gain
+        }
+        threads = best
+        best
+    }
+
     /** Stops a transcription that is running on another thread. */
     fun abort() = nativeAbort()
 
@@ -49,8 +75,6 @@ object Whisper {
     fun transcribe(modelPath: String, audio: FloatArray, lang: String, prompt: String, extraAccuracy: Boolean = false,
                    toEnglish: Boolean = false): String? = synchronized(lock) {
         if (!ensureLoaded(modelPath)) return null
-        // Big phone cores do the work; spreading over all 8 (incl. the slow ones) is usually slower.
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         // Extra accuracy: the full window and 3 parallel guesses (slower). Otherwise quick mode.
         val audioCtx = if (extraAccuracy) 1500 else audioCtxFor(audio.size)
         val beams = if (extraAccuracy) 3 else 1
