@@ -15,6 +15,25 @@ import android.widget.TextView
  * Home: the floating microphone switch, setup checklist, stats, a box to try it,
  * and your recent dictations.
  */
+/** Choose a length limit (in characters). [save] gets 0 for "no limit"; [pkg] = for one app. */
+fun pickLimit(a: android.app.Activity, pkg: String? = null, done: () -> Unit) {
+    val opts = listOf(0 to "No limit", 100 to "100 characters", 150 to "150 characters", 200 to "200 characters (Roblox)",
+        280 to "280 characters (X / Twitter)", 500 to "500 characters", -1 to "Custom…")
+    fun save(n: Int) {
+        if (pkg == null) Prefs(a).maxChars = n else Styles.setAppLimit(a, pkg, n)
+        done()
+    }
+    Ui.dialog(a).setTitle("Longest message").setItems(opts.map { it.second }.toTypedArray()) { _, i ->
+        val n = opts[i].first
+        if (n >= 0) save(n) else {
+            val f = Ui.field(a, "Characters, e.g. 250").apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER }
+            Ui.dialog(a).setTitle("Custom limit").setView(Ui.padded(a, f))
+                .setPositiveButton("Save") { _, _ -> save(f.text.toString().toIntOrNull()?.coerceIn(20, 5000) ?: 0) }
+                .setNegativeButton("Cancel", null).show()
+        }
+    }.setNegativeButton("Cancel", null).show()
+}
+
 class MainActivity : Screen() {
 
     private var update: Updates.Release? = null
@@ -193,6 +212,11 @@ class MainActivity : Screen() {
             "EVERYTHING IN CAPITALS. Also the ABC button next to the bubble while you speak", prefs.capsLock) { on ->
             prefs.capsLock = on; refreshBubble()
         }
+        rows += Ui.row(this, R.drawable.ui_file, "orange", "Length limit",
+            value = if (prefs.maxChars > 0) "${prefs.maxChars} characters" else "Off",
+            sub = "Longest message. Roblox gets 200 automatically") { pickLimit(this) { render() } }
+        if (prefs.engine == "live" && BuildConfig.AUTOTYPE) rows += Ui.switchRow(this, R.drawable.ui_wand, "gold", "Type while I talk",
+            "Live engine: words appear in the text box as you speak", prefs.typeWhileTalking) { on -> prefs.typeWhileTalking = on }
         rows += Ui.switchRow(this, R.drawable.ui_book, "green", "Learn how I talk",
             "Remembers your fixes, names you use and how you write", Adapt.isOn(this)) { on -> Adapt.setOn(this, on) }
         rows += Ui.switchRow(this, R.drawable.ui_type, "blue", "Live text",

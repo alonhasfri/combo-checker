@@ -160,3 +160,15 @@ class ShakespeareModeTest {
         assertEquals(Cmd.Persona(null), Commands.parse("Hey bubble, back to normal.", "hey bubble"))
     }
 }
+
+class LimitTest {
+    @Test fun cutsBetweenWordsOrSentences() {
+        assertEquals("short" to null, Limit.fit("short", 200))
+        val (a, b) = Limit.fit("I love this game. It is so fun to play with my friends every day", 30)
+        assertEquals("I love this game.", a)
+        assertEquals("It is so fun to play with my friends every day", b)
+        val (c, d) = Limit.fit("one two three four five six seven", 20)
+        assertEquals("one two three four", c)
+        assertEquals("five six seven", d)
+    }
+}

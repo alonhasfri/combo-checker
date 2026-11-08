@@ -477,6 +477,7 @@ class BubbleService : Service() {
     }
 
     private fun cancelRecording() {
+        if (session?.typed == true) InsertService.instance?.undo()
         main.removeCallbacks(chunker)
         endSession()
         Whisper.abort()
@@ -490,6 +491,7 @@ class BubbleService : Service() {
     private fun cancelWork() {
         if (cancelled) return
         cancelled = true
+        if (session?.typed == true) InsertService.instance?.undo()
         endSession()          // drops the dictation still being worked on
         Whisper.abort()
         working = false
@@ -508,6 +510,8 @@ class BubbleService : Service() {
     ) {
         /** Set when the Live (streaming) engine is used: text grows while you talk. */
         var live: Live.Session? = null
+        var typed = false                   // Live + autotype: words already typed into the text box
+        var limit: Int? = null              // longest message for this app (null = none)
         var fed = 0                         // Live: samples already given to it
         var cutAt = 0                       // audio before this sample is already being turned into text
         val parts = ArrayList<String?>()    // text of each part (null = still working on it)
@@ -547,10 +551,16 @@ class BubbleService : Service() {
             listOf(prefs.commandWord + ".", Words.prompt(this), Adapt.prompt(this)).filter { it.isNotBlank() }.joinToString(" "),
             toEnglish, aiTarget, prefs.commandWord)
         // Live engine: English, no on-phone translation (Whisper does that), model downloaded and loaded.
-        if (prefs.engine == "live" && lang == "en" && !toEnglish) {
+        // Live engine: English (anything unless this app is set to another language), no on-phone translation.
+        if (prefs.engine == "live" && (appLang == null || appLang == "en") && !toEnglish) {
             val lm = Live.byId(prefs.liveModelId)
-            if (Live.isDownloaded(this, lm) && Live.ensureLoaded(this, lm)) s.live = Live.start()
+            when {
+                !Live.isDownloaded(this, lm) -> toast("Live model not downloaded: using Whisper")
+                Live.ensureLoaded(this, lm) -> s.live = Live.start()
+                else -> toast("Live engine couldn't start (${Live.lastError ?: "unknown"}): using Whisper")
+            }
         }
+        s.limit = Limit.forApp(this, app)
         try {
             recorder.onMaxReached = { main.post { if (recorder.isRecording) finishRecording() } }
             recorder.start()
@@ -584,7 +594,7 @@ class BubbleService : Service() {
                     worker.execute {
                         if (s.token != sessionToken) return@execute
                         val text = live.feed(chunk)
-                        main.post { if (s.token == sessionToken) showLiveText(text) }
+                        main.post { if (s.token == sessionToken) typeLive(s, text) }
                     }
                 }
                 main.postDelayed(this, 150)
@@ -679,11 +689,12 @@ class BubbleService : Service() {
                     working = false
                     setState(BubbleView.State.IDLE)
                     val cmd = split.cmd
+                    if (s.typed) InsertService.instance?.undo()   // the command words were typed while talking
                     when {
                         before == null -> runCommand(cmd)
                         // "…text…, out of context, make this longer": rewrite what you just said, then type it.
-                        cmd is Commands.Cmd.Rewrite -> rewrite(cmd.instruction, before)
-                        else -> { deliver(before); Stats.record(this, before, seconds, s.app); runCommand(cmd) }
+                        cmd is Commands.Cmd.Rewrite -> rewrite(cmd.instruction, before, s.limit)
+                        else -> { deliver(before, s.limit); Stats.record(this, before, seconds, s.app); runCommand(cmd) }
                     }
                 }
                 return@execute
@@ -695,10 +706,10 @@ class BubbleService : Service() {
             if (text != null && Shakespeare.wanted(persona) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
                 text = Shakespeare.apply(text)   // instant, no AI
             } else if (text != null && persona != null && Ai.hasKey(this)) {
-                text = try { Ai.rewrite(this, text, "Make me sound like $persona") } catch (e: Ai.Failure) { problem = e.message; text }
+                text = try { Ai.rewrite(this, text, "Make me sound like $persona", s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (text != null && s.aiTarget != null) {
-                text = try { Ai.translate(this, text, s.aiTarget) } catch (e: Ai.Failure) { problem = e.message; text }
+                text = try { Ai.translate(this, text, s.aiTarget, s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (caps) text = text?.uppercase()
             main.post {
@@ -711,7 +722,7 @@ class BubbleService : Service() {
                     failed -> toast("Couldn't turn that into text")
                     text.isNullOrEmpty() -> toast("Didn't catch any words")
                     else -> {
-                        deliver(text!!)
+                        deliverFinal(s, text!!)
                         Stats.record(this, text!!, seconds, s.app)
                     }
                 }
@@ -728,6 +739,40 @@ class BubbleService : Service() {
     }
 
     // ----- live text next to the bubble -----
+
+    /** Live engine: put the words so far straight into the text box (autotype), or in the live box. */
+    private fun typeLive(s: Session, text: String) {
+        val svc = InsertService.instance
+        if (!prefs.typeWhileTalking || svc == null) { showLiveText(text); return }
+        if (text.isBlank()) return
+        if (!s.typed) {
+            if (svc.insert(text)) s.typed = true else showLiveText(text)
+        } else if (!svc.replaceLast(text)) {
+            showLiveText(text)   // you moved the cursor or edited: show it here instead
+        }
+    }
+
+    /** The finished text: swaps out what was typed while you talked, or types it now. */
+    private fun deliverFinal(s: Session, text: String) {
+        if (s.typed) {
+            val (first, rest) = fitToLimit(text, s.limit)
+            if (InsertService.instance?.replaceLast(first) == true) {
+                lastText = first; buzz(15); showUndo()
+                rest?.let { copyRest(it, s.limit) }
+                return
+            }
+        }
+        deliver(text, s.limit)
+    }
+
+    private fun fitToLimit(text: String, limit: Int?): Pair<String, String?> =
+        if (limit == null) text to null else Limit.fit(text, limit)
+
+    /** Too long for one message: the rest goes on the clipboard for the next one. */
+    private fun copyRest(rest: String, limit: Int?) {
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Voice Bubble", rest))
+        toast("Longer than $limit characters: the rest is copied for your next message")
+    }
 
     private fun showLive(s: Session) =
         showLiveText(synchronized(s) { s.parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" ") })
@@ -817,15 +862,22 @@ class BubbleService : Service() {
     }
 
     /** Types it into the selected text box; otherwise puts it on the clipboard. */
-    private fun deliver(text: String) {
+    private fun deliver(full: String, limit: Int? = null) {
+        val (text, rest) = fitToLimit(full, limit)
         lastText = text
         val typed = InsertService.instance?.let { runCatching { it.insert(text) }.getOrDefault(false) } ?: false
         if (typed) {
             buzz(15)
             showUndo()
+            // Typed the part that fits; the rest goes on the clipboard for the next message.
+            rest?.let { copyRest(it, limit) }
             return
         }
         copyOut(text)
+        if (rest != null) {
+            toast("First $limit characters copied. The rest is in Recent on the Home screen")
+            return
+        }
         toast(when {
             !BuildConfig.AUTOTYPE -> "Copied: tap it in your keyboard's bar, or long-press → Paste"
             InsertService.isOn -> "No text box selected. Copied: long-press a text box → Paste"
@@ -894,7 +946,7 @@ class BubbleService : Service() {
      * "rewrite, make this more polite". With [fresh] text (said in the same breath) it rewrites that and
      * types the result; otherwise it rewrites your last dictation and swaps it in.
      */
-    private fun rewrite(instruction: String, fresh: String? = null) {
+    private fun rewrite(instruction: String, fresh: String? = null, limit: Int? = Limit.forApp(this, AppDetector.current(this))) {
         val text = fresh ?: lastText ?: run { toast("Dictate something first, then ask to rewrite it"); return }
         // Shakespeare can be done instantly on the phone.
         if (Shakespeare.wanted(instruction) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
@@ -909,8 +961,8 @@ class BubbleService : Service() {
             fresh?.let { deliver(it) }   // don't lose what you said
             return
         }
-        aiJob({ Ai.rewrite(this, text, instruction) }, onFail = { fresh?.let { deliver(it) } }) { out ->
-            if (fresh != null) { deliver(out); return@aiJob }
+        aiJob({ Ai.rewrite(this, text, instruction, limit) }, onFail = { fresh?.let { deliver(it, limit) } }) { out ->
+            if (fresh != null) { deliver(out, limit); return@aiJob }
             lastText = out
             if (InsertService.instance?.replaceLast(out) == true) { buzz(15); toast("Rewritten ✓"); showUndo() }
             else { copyOut(out); toast("Rewritten text copied: paste it over the old one") }

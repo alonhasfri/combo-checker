@@ -154,6 +154,14 @@ class Prefs(private val ctx: Context) {
     var liveModelId: String
         get() = p.getString("liveModel", "kroko")!!
         set(v) = p.edit().putString("liveModel", v).apply()
+    /** Longest message in characters, everywhere (0 = no limit). Apps can have their own (Style tab). */
+    var maxChars: Int
+        get() = p.getInt("maxChars", 0)
+        set(v) = p.edit().putInt("maxChars", v).apply()
+    /** Live engine + autotype: type the words into the text box while you talk. */
+    var typeWhileTalking: Boolean
+        get() = p.getBoolean("typeLive", true)
+        set(v) = p.edit().putBoolean("typeLive", v).apply()
     var bubbleX: Int
         get() = p.getInt("bx" + orient, -1)
         set(v) = p.edit().putInt("bx" + orient, v).apply()

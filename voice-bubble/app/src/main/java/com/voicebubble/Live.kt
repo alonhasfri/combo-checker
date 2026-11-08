@@ -43,6 +43,8 @@ object Live {
     private val lock = Any()
     private var recognizer: OnlineRecognizer? = null
     private var loadedId: String? = null
+    /** Why the last load failed (shown to you), or null. */
+    @Volatile var lastError: String? = null
 
     /** Loads the model (a second or two the first time). False when it can't. */
     fun ensureLoaded(c: Context, m: LiveModel): Boolean = synchronized(lock) {
@@ -67,8 +69,10 @@ object Live {
             )
             recognizer = OnlineRecognizer(null, config)
             loadedId = m.id
+            lastError = null
             true
         } catch (e: Throwable) {
+            lastError = (e.message ?: e.javaClass.simpleName).take(120)
             recognizer = null
             loadedId = null
             false

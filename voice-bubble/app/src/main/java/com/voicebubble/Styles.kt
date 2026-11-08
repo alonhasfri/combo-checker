@@ -95,6 +95,22 @@ object Styles {
 
     fun langFor(c: Context, pkg: String?): String? = pkg?.let { appLangs(c)[it] }
 
+    // ----- length limit for specific apps (0 = no limit) -----
+
+    fun appLimits(c: Context): Map<String, Int> {
+        val o = try { org.json.JSONObject(sp(c).getString("appLimits", "{}")!!) } catch (e: Exception) { org.json.JSONObject() }
+        val out = LinkedHashMap<String, Int>()
+        for (k in o.keys()) out[k] = o.optInt(k)
+        return out
+    }
+
+    fun setAppLimit(c: Context, pkg: String, chars: Int?) {
+        val o = org.json.JSONObject()
+        appLimits(c).forEach { (k, v) -> if (k != pkg) o.put(k, v) }
+        if (chars != null) o.put(pkg, chars)
+        sp(c).edit().putString("appLimits", o.toString()).apply()
+    }
+
     /** The style to use in this app: its own if you set one, otherwise its category's. */
     fun forApp(c: Context, pkg: String?): Style =
         pkg?.let { appStyles(c)[it] } ?: get(c, categoryOf(pkg))

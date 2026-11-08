@@ -81,13 +81,15 @@ class StylesActivity : Screen() {
         page.addView(Ui.sectionTitle(this, "Specific apps"))
         val styles = Styles.appStyles(this)
         val langs = Styles.appLangs(this)
-        val rows = (styles.keys + langs.keys).distinct().map { pkg ->
+        val limits = Styles.appLimits(this)
+        val rows = (styles.keys + langs.keys + limits.keys).distinct().map { pkg ->
             val parts = listOfNotNull(styles[pkg]?.title?.trimEnd('.', '!'),
-                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code })
+                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code },
+                limits[pkg]?.let { if (it > 0) "$it chars" else "no limit" })
             Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = parts.joinToString(" · ")) { appOptions(pkg) }
         }.toMutableList<android.view.View>()
         rows += Ui.row(this, R.drawable.ui_plus, "blue", "Add an app",
-            sub = "Its own style and/or language, e.g. Discord → gen z, WhatsApp → Hebrew") { pickApp() }
+            sub = "Its own style, language or length limit, e.g. Discord → gen z, Roblox → 200 characters") { pickApp() }
         page.addView(Ui.group(this, rows))
 
         page.addView(Ui.note(this, "Styles are made for English. In other languages only the caps and punctuation change.")
@@ -113,11 +115,12 @@ class StylesActivity : Screen() {
     }
 
     private fun appOptions(pkg: String) {
-        Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style", "Language", "Remove (use the defaults)")) { _, i ->
+        Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style", "Language", "Length limit", "Remove (use the defaults)")) { _, i ->
             when (i) {
                 0 -> pickStyle(pkg)
                 1 -> pickLang(pkg)
-                else -> { Styles.setAppStyle(this, pkg, null); Styles.setAppLang(this, pkg, null); render() }
+                2 -> pickLimit(this, pkg) { render() }
+                else -> { Styles.setAppStyle(this, pkg, null); Styles.setAppLang(this, pkg, null); Styles.setAppLimit(this, pkg, null); render() }
             }
         }.setNegativeButton("Cancel", null).show()
     }

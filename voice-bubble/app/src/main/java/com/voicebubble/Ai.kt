@@ -33,18 +33,21 @@ object Ai {
         else -> ""
     }
 
-    fun rewrite(c: Context, text: String, instruction: String): String = ask(c,
+    private fun limitNote(maxChars: Int?) =
+        if (maxChars != null && maxChars > 0) "\n\nHard limit: the result must be at most $maxChars characters long (shorten it if needed)." else ""
+
+    fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String = ask(c,
         "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
             "the language and any names. If they want to sound like a person, character or style (Shakespeare, " +
             "a video game character, a pirate…), go all the way: imitate their typical words, grammar, spelling " +
             "quirks and catchphrases, while still saying what the person wanted to say. " +
             "Reply with only the new text: no quotes, no explanation.",
-        "Instruction: $instruction\n\nText:\n$text")
+        "Instruction: $instruction\n\nText:\n$text" + limitNote(maxChars))
 
-    fun translate(c: Context, text: String, language: String): String = ask(c,
+    fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = ask(c,
         "You translate text someone dictated by voice. Keep the tone, names and emoji. " +
             "Reply with only the translation: no quotes, no explanation.",
-        "Translate into $language:\n$text")
+        "Translate into $language:\n$text" + limitNote(maxChars))
 
     /** Three short replies the user could send next in the chat on screen. */
     fun replies(c: Context, chat: String, instruction: String): List<String> {
