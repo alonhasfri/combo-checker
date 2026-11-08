@@ -83,3 +83,18 @@ class PersonaTest {
         assertEquals(Cmd.Rewrite("make this shorter"), Commands.parse("Out of context, make this shorter"))
     }
 }
+
+class LooseCommandsTest {
+    @Test fun talkLikeAfterText() {
+        assertEquals(Commands.Split("easy you're so bad quit the game", Cmd.Rewrite("Make me sound like Rouxls Kaard")),
+            Commands.split("easy you're so bad quit the game hey bubble make me talk like Rouxls Kaard", "hey bubble"))
+    }
+
+    @Test fun anyInstructionIsARewrite() {
+        assertEquals(Commands.Split("I love pizza", Cmd.Rewrite("turn this into a rap")),
+            Commands.split("I love pizza, hey bubble, turn this into a rap.", "hey bubble"))
+        assertEquals(Cmd.Rewrite("add more emojis"), Commands.parse("out of context, add more emojis"))
+        // Still not a command when it isn't an instruction.
+        assertNull(Commands.split("That quote was taken out of context by them"))
+    }
+}
