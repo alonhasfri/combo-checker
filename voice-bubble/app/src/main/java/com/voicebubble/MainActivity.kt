@@ -245,6 +245,7 @@ class MainActivity : Screen() {
             "• \"$w, reply\" / \"…reply in gen z\" / \"…reply like Gojo, saying I'm late\"\n" +
             "• \"$w, summarise\" (the chat on screen)\n" +
             "• \"$w, make me sound like Shakespeare\" / \"…talk like Rouxls Kaard from now on\" / \"…talk normally\"\n" +
+            "• \"$w, offline Shakespeare\" (instant) / \"…AI Shakespeare\" / \"…back to normal\"\n" +
             "• \"$w, undo\", or just \"scratch that\"\n" +
             "Rewrite, reply, summarise and most translations need an AI key (Settings → AI). Reply, summarise and undo need the autotype version."
         ).apply { setPaddingRelative(0, dp(8), 0, 0) })

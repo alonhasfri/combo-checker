@@ -34,6 +34,8 @@ object Commands {
         data class Summarize(val instruction: String) : Cmd()
         /** Rewrite everything from now on to sound like someone (null = back to normal). */
         data class Persona(val who: String?) : Cmd()
+        /** Shakespeare mode on, either instant (on the phone) or the AI version. */
+        data class ShakespeareMode(val instant: Boolean) : Cmd()
         object Undo : Cmd()
         data class Unknown(val said: String) : Cmd()
     }
@@ -130,6 +132,13 @@ object Commands {
                 "^stop (?:the )?(?:character|persona|voice|accent|shakespeare)|^no more (?:persona|character|shakespeare)|" +
                 "^(?:turn off|disable) (?:the )?(?:character|persona|talk like)|^be (?:myself|me)\\b|^my (?:own|normal) voice").containsMatchIn(n))
             return Cmd.Persona(null)
+        // "offline Shakespeare" / "switch to AI Shakespeare": Shakespeare mode, instant or AI.
+        Regex("^(?:(?:switch|change|go) (?:to )?|use |turn on |enable |start )?(?:the )?" +
+            "(instant|offline|fast|quick|simple|ai|a i|online|smart|better|full|real|good|normal) shakespeare(?: mode| version| one)?$")
+            .find(n)?.let { mm ->
+                val instant = mm.groupValues[1] in setOf("instant", "offline", "fast", "quick", "simple")
+                return Cmd.ShakespeareMode(instant)
+            }
         // "make me sound like Shakespeare", "talk like Rouxls Kaard from now on", "in the style of a pirate".
         Regex("^(?:make (?:me|it|this) (?:sound|talk|speak|write|look) like|make (?:me|it|this) (?:sound|talk|speak) as|sound like|talk like|speak like|write like|say it like|say this like|rewrite (?:it |this )?(?:like|as)|in the style of|(?:always )?(?:talk|sound|speak) like)\\s+(.+)$")
             .find(n)?.let { mm ->

@@ -150,3 +150,13 @@ class ShakespeareTest {
         assertEquals(Cmd.Persona(null), Commands.parse("out of context, stop the character"))
     }
 }
+
+class ShakespeareModeTest {
+    @Test fun switching() {
+        assertEquals(Cmd.ShakespeareMode(true), Commands.parse("Hey bubble, offline Shakespeare.", "hey bubble"))
+        assertEquals(Cmd.ShakespeareMode(true), Commands.parse("Hey bubble, switch to instant Shakespeare", "hey bubble"))
+        assertEquals(Cmd.ShakespeareMode(false), Commands.parse("Hey bubble, AI Shakespeare", "hey bubble"))
+        assertEquals(Cmd.ShakespeareMode(false), Commands.parse("hey bubble switch to the better Shakespeare one", "hey bubble"))
+        assertEquals(Cmd.Persona(null), Commands.parse("Hey bubble, back to normal.", "hey bubble"))
+    }
+}

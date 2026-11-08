@@ -846,6 +846,16 @@ class BubbleService : Service() {
             is Commands.Cmd.Rewrite -> rewrite(cmd.instruction)
             is Commands.Cmd.Reply -> reply(cmd.instruction)
             is Commands.Cmd.Summarize -> summarize(cmd.instruction)
+            is Commands.Cmd.ShakespeareMode -> {
+                prefs.persona = "Shakespeare"
+                prefs.instantShakespeare = cmd.instant
+                refreshLook()
+                toast(when {
+                    cmd.instant -> "Instant Shakespeare on: no waiting"
+                    !Ai.hasKey(this) -> "AI Shakespeare needs an AI key, so it's the instant one for now"
+                    else -> "AI Shakespeare on"
+                })
+            }
             is Commands.Cmd.Persona -> {
                 prefs.persona = cmd.who
                 refreshLook()
