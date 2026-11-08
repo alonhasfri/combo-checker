@@ -261,8 +261,20 @@ class MainActivity : Screen() {
 
     private fun pickPersona() {
         val prefs = Prefs(this)
-        val presets = listOf("Shakespeare", "Rouxls Kaard", "Spamton", "Sans", "Gojo", "Sukuna", "a pirate",
-            "a medieval knight", "a news reporter", "a Gen Z teenager")
+        val presets = listOf(
+            // Deltarune & Undertale
+            "Rouxls Kaard", "Spamton", "Jevil", "Sans", "Papyrus", "Undyne", "Alphys", "Mettaton", "Flowey",
+            "Toriel", "Asgore", "Temmie", "Susie", "Ralsei", "Lancer", "Berdly", "Noelle", "Tenna", "Queen",
+            // Jujutsu Kaisen
+            "Gojo", "Sukuna", "Yuji Itadori", "Megumi", "Nobara", "Nanami", "Todo", "Mahito", "Kenjaku", "Hakari",
+            // Other anime & games
+            "Goku", "Vegeta", "Naruto", "Luffy", "Zoro", "All Might", "Light Yagami", "Saitama", "Rimuru",
+            "Mario", "Sonic", "Kratos", "GLaDOS", "a Minecraft villager",
+            // Famous voices & styles
+            "Shakespeare", "Yoda", "Gollum", "Sherlock Holmes", "a pirate", "a medieval knight", "a cowboy",
+            "a news reporter", "a sports commentator", "a motivational coach", "a robot", "a villain monologue",
+            "a fairy tale narrator", "a Gen Z teenager", "a grumpy old man", "an overly polite butler",
+        )
         val items = (listOf("Off") + presets + "Someone else…").toTypedArray()
         Ui.dialog(this).setTitle("Talk like").setItems(items) { _, i ->
             when {
