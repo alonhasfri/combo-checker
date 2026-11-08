@@ -37,6 +37,9 @@ class InsertService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Remember the last text box that got focus, in case the app doesn't report focus later.
+        // The keyboard window opening or closing: tell the bubble straight away.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+            BubbleService.instance?.keyboardMayHaveChanged()
         val src = event?.source ?: return
         if (src.isEditable) lastEditable = src
         // You edited the text box it just typed into: once you pause, see if you corrected a word.

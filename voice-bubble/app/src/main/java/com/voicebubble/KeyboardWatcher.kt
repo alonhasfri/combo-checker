@@ -34,7 +34,8 @@ class KeyboardWatcher(
     private val poll = object : Runnable {
         override fun run() {
             evaluate()
-            main.postDelayed(this, 350)
+            // With the accessibility service, Android tells us right away (see poke), so checks can be rarer.
+            main.postDelayed(this, if (InsertService.isOn) 250L else 120L)
         }
     }
 
@@ -61,6 +62,13 @@ class KeyboardWatcher(
         runCatching { wm.addView(v, lp) }
         strip = v
         main.post(poll)
+    }
+
+    /** The keyboard window just opened or closed (from the accessibility service): check now. */
+    fun poke() {
+        main.post { evaluate() }
+        // Android may still be animating the keyboard: look again shortly after.
+        main.postDelayed({ evaluate() }, 60)
     }
 
     fun stop() {
@@ -106,7 +114,7 @@ class KeyboardWatcher(
 
         // Open right away; close only after it stays closed a moment (switching text boxes flickers).
         if (nowOpen) closedCount = 0 else closedCount++
-        val report = nowOpen || (open && closedCount < 2)
+        val report = nowOpen || (open && closedCount < 2 && !InsertService.isOn)
         val reportTop = if (nowOpen) nowTop else top
         if (report != open || reportTop != top) {
             open = report

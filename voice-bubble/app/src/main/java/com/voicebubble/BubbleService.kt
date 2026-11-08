@@ -331,6 +331,9 @@ class BubbleService : Service() {
         positionLive()
     }
 
+    /** Called by the accessibility service when windows change (keyboard opened/closed). */
+    fun keyboardMayHaveChanged() = watcher?.poke()
+
     /** Re-creates the bubble when "Type into apps" is switched on or off, so it moves over or under the keyboard. */
     fun reattach() {
         main.post {
