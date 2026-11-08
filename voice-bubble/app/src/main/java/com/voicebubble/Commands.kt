@@ -47,6 +47,8 @@ object Commands {
 
     const val DEFAULT_WORD = "out of context"
 
+    private fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}' ]+"), " ").replace(Regex("\\s+"), " ").trim()
+
     /** A word in the text, with where it is. */
     private class Tok(val start: Int, val end: Int, val word: String)
     private fun toks(text: String) =
