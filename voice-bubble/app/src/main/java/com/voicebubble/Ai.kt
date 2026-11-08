@@ -110,33 +110,58 @@ object Ai {
         }
     }
 
-    /** OpenRouter (the other free option Comboed supports): OpenAI-style chat API, free model. */
+    /**
+     * OpenRouter (the free sk-or- key Comboed uses). Free models come and go and get busy, so a few
+     * quick text models are tried in order. "Thinking" is switched off: it only adds waiting time
+     * for rewriting or translating a sentence.
+     */
+    private val openRouterModels = listOf(
+        "google/gemma-4-26b-a4b-it:free",      // fast (small active part), good at creative rewrites
+        "nvidia/nemotron-3.5-lightning:free",  // built for speed
+        "openrouter/free",                     // OpenRouter picks any free model
+    )
+
     private fun openRouter(key: String, system: String, user: String): String {
-        try {
-            val body = JSONObject()
-                .put("model", "nvidia/nemotron-3.5-super-vl:free")
-                .put("messages", JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", system))
-                    .put(JSONObject().put("role", "user").put("content", user)))
-            val conn = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.connectTimeout = 15000
-            conn.readTimeout = 60000
-            conn.doOutput = true
-            conn.setRequestProperty("content-type", "application/json")
-            conn.setRequestProperty("authorization", "Bearer $key")
-            conn.outputStream.use { it.write(body.toString().toByteArray()) }
-            val code = conn.responseCode
-            val text = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
-            if (code == 429) throw Failure("OpenRouter's free limit is reached. Wait a minute and try again")
-            if (code == 401 || code == 403) throw Failure("That OpenRouter key doesn't work. Check it in Settings → AI")
-            if (code !in 200..299) throw Failure("OpenRouter error $code")
-            return JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content")
-        } catch (e: Failure) {
-            throw e
-        } catch (e: Exception) {
-            throw Failure("No connection to OpenRouter. Try again")
+        var lastError: Failure? = null
+        for (model in openRouterModels) {
+            for (noThinking in listOf(true, false)) {
+                try {
+                    val body = JSONObject()
+                        .put("model", model)
+                        .put("max_tokens", 1500)
+                        .put("messages", JSONArray()
+                            .put(JSONObject().put("role", "system").put("content", system))
+                            .put(JSONObject().put("role", "user").put("content", user)))
+                    if (noThinking) body.put("reasoning", JSONObject().put("enabled", false))
+                    val conn = URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 10000
+                    conn.readTimeout = 45000
+                    conn.doOutput = true
+                    conn.setRequestProperty("content-type", "application/json")
+                    conn.setRequestProperty("authorization", "Bearer $key")
+                    conn.outputStream.use { it.write(body.toString().toByteArray()) }
+                    val code = conn.responseCode
+                    val text = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
+                    if (code == 401 || code == 403) throw Failure("That OpenRouter key doesn't work. Check it in Settings → AI")
+                    // Some models insist on thinking: try once more without switching it off.
+                    if (code == 400 && noThinking) continue
+                    if (code !in 200..299) {
+                        lastError = Failure(if (code == 429) "OpenRouter's free models are busy. Try again in a moment" else "OpenRouter error $code")
+                        break   // next model
+                    }
+                    val out = JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content")
+                    if (out.isNotBlank()) return out
+                    break
+                } catch (e: Failure) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = Failure("No connection to OpenRouter. Try again")
+                    break
+                }
+            }
         }
+        throw lastError ?: Failure("OpenRouter sent back nothing. Try again")
     }
 
     private fun gemini(key: String, system: String, user: String): String {
