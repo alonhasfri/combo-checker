@@ -28,7 +28,7 @@ object Shakespeare {
         "listen" to "hark", "kill" to "slay", "fight" to "duel", "money" to "coin", "phone" to "talking-glass",
     )
     private val rules = swaps.map { (from, to) ->
-        Regex("(?<![\\p{L}'])" + Regex.escape(from).replace(" ", "\\s+") + "(?![\\p{L}'])", RegexOption.IGNORE_CASE) to to
+        Regex("(?<![\\p{L}'])" + from.split(" ").joinToString("\\s+") { Regex.escape(it) } + "(?![\\p{L}'])", RegexOption.IGNORE_CASE) to to
     }
 
     fun apply(text: String): String {
