@@ -191,6 +191,8 @@ class MainActivity : Screen() {
             "EVERYTHING IN CAPITALS. Also the ABC button next to the bubble while you speak", prefs.capsLock) { on ->
             prefs.capsLock = on; refreshBubble()
         }
+        rows += Ui.switchRow(this, R.drawable.ui_book, "green", "Learn how I talk",
+            "Remembers your fixes, names you use and how you write", Adapt.isOn(this)) { on -> Adapt.setOn(this, on) }
         rows += Ui.switchRow(this, R.drawable.ui_type, "blue", "Live text",
             "Shows your words next to the bubble as you talk", prefs.liveText) { on -> prefs.liveText = on }
         rows += Ui.switchRow(this, R.drawable.ui_target, "green", "Extra accuracy",

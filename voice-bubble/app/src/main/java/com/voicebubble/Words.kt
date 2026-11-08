@@ -58,7 +58,8 @@ object Words {
     }
 
     fun apply(c: Context, text: String, capitalize: Boolean = true): String =
-        applyShortcuts(applyDictionary(text, dictionary(c), shortcuts(c), strict = Packs.names(c)), shortcuts(c), capitalize)
+        applyShortcuts(Adapt.applyFixes(c, applyDictionary(text, dictionary(c), shortcuts(c), strict = Packs.names(c)), capitalize),
+            shortcuts(c), capitalize)
 
     private class Tok(val start: Int, val end: Int, val text: String) { val n = norm(text) }
 

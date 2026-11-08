@@ -57,3 +57,15 @@ class CommandWordTest {
         assertEquals(Cmd.Reply("in gen z"), Commands.parse("out of context, reply in gen z"))
     }
 }
+
+class AdaptTest {
+    @Test fun spotsNames() {
+        assertEquals(listOf("Sukuna", "Gojo"), Adapt.nameCandidates("I talked to Sukuna and Gojo today. Then we left."))
+        assertEquals(listOf("Holmes Place"), Adapt.nameCandidates("Talk to Holmes Place now"))
+        assertEquals(emptyList<String>(), Adapt.nameCandidates("Hello there. How are you?"))
+    }
+
+    @Test fun fixPair() {
+        assertEquals("Go Joe" to "Gojo", Learn.correctionPair("I watched Go Joe fight", "I watched Gojo fight", 0, 22))
+    }
+}

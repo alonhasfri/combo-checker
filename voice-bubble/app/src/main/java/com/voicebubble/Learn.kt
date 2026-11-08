@@ -9,7 +9,10 @@ object Learn {
      * inside the dictated part ([from]..[to] in [before]) with a different word or two, returns the new
      * wording (e.g. "Go Joe" → "Gojo" gives "Gojo"). Null for anything else (typing more, deleting…).
      */
-    fun correction(before: String, after: String, from: Int, to: Int): String? {
+    fun correction(before: String, after: String, from: Int, to: Int): String? = correctionPair(before, after, from, to)?.second
+
+    /** Like [correction], but also returns what it had typed: ("Go Joe", "Gojo"). */
+    fun correctionPair(before: String, after: String, from: Int, to: Int): Pair<String, String>? {
         if (before == after) return null
         var p = 0
         while (p < before.length && p < after.length && before[p] == after[p]) p++
@@ -31,6 +34,6 @@ object Learn {
         if (!newWords.all { w -> w.any { it.isLetter() } && w.all { isWordChar(it) } }) return null
         if (newSeg.equals(oldSeg, ignoreCase = false)) return null
         if (newSeg.length < 2) return null
-        return newSeg
+        return oldSeg to newSeg
     }
 }

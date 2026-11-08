@@ -536,7 +536,8 @@ class BubbleService : Service() {
         val toEnglish = target.equals("English", true) && !chosen.englishOnly
         val aiTarget = target?.takeIf { !toEnglish && !(it.equals("English", true) && !Ai.hasKey(this)) }
         val s = Session(++sessionToken, app, Styles.categoryOf(app), Styles.forApp(this, app),
-            Models.file(this, chosen).path, lang, prefs.extraAccuracy, Words.prompt(this),
+            Models.file(this, chosen).path, lang, prefs.extraAccuracy,
+            listOf(Words.prompt(this), Adapt.prompt(this)).filter { it.isNotBlank() }.joinToString(" "),
             toEnglish, aiTarget, prefs.commandWord)
         try {
             recorder.onMaxReached = { main.post { if (recorder.isRecording) finishRecording() } }
@@ -628,6 +629,7 @@ class BubbleService : Service() {
             val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
             val said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
             val failed = said == null && synchronized(s) { s.failed }
+            if (said != null) Adapt.observe(this, said)
             // Just "scratch that" on its own: take back the last dictation.
             val split = said?.let { if (Commands.isScratch(it)) Commands.Split("", Commands.Cmd.Undo) else Commands.split(it, s.word) }
             if (split != null) {
@@ -718,20 +720,23 @@ class BubbleService : Service() {
 
     // ----- "add this word to your dictionary?" after you correct one -----
 
-    /** Called by the typing service when you fixed a word it typed. */
-    fun offerWord(word: String) {
+    /** Called by the typing service when you fixed words it typed ([heard] → [meant]). */
+    fun offerWord(heard: String, meant: String) {
         main.post {
             offerView?.let { runCatching { wm.removeView(it) } }
+            val inDict = Words.dictionary(this).any { it == meant }
             val v = TextView(this).apply {
-                text = "Add \u201c$word\u201d to your dictionary?  ✓"
+                text = if (inDict) "Remember \u201c$heard\u201d → \u201c$meant\u201d?  ✓" else "Add \u201c$meant\u201d to your dictionary?  ✓"
                 setTextColor(Color.WHITE)
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
                 setPadding(dpx(16), dpx(10), dpx(16), dpx(10))
                 background = GradientDrawable().apply { cornerRadius = dpx(18).toFloat(); setColor(Color.rgb(58, 91, 217)) }
                 setOnClickListener {
-                    Words.saveDictionary(this@BubbleService, Words.dictionary(this@BubbleService) + word)
-                    toast("\u201c$word\u201d added ✓")
+                    // The word goes in your dictionary, and this exact mishearing is fixed from now on.
+                    if (!inDict && meant.split(' ').size <= 2) Words.saveDictionary(this@BubbleService, Words.dictionary(this@BubbleService) + meant)
+                    Adapt.addFix(this@BubbleService, heard, meant)
+                    toast("Got it: \u201c$heard\u201d will be \u201c$meant\u201d ✓")
                     buzz(15)
                     runCatching { wm.removeView(this) }
                     offerView = null

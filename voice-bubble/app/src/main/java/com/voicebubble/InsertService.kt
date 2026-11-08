@@ -52,10 +52,10 @@ class InsertService : AccessibilityService() {
         if (!Prefs(this).learnFixes) return
         if (!runCatching { l.node.refresh() }.getOrDefault(false)) return
         val now = if (l.node.isShowingHintText) "" else l.node.text?.toString().orEmpty()
-        val word = Learn.correction(l.newText, now, l.at, l.at + l.piece.length) ?: return
+        val (heard, meant) = Learn.correctionPair(l.newText, now, l.at, l.at + l.piece.length) ?: return
         last = null   // one offer per dictation (and undo no longer applies to edited text)
-        if (Words.dictionary(this).any { it.equals(word, ignoreCase = false) }) return
-        BubbleService.instance?.offerWord(word)
+        if (Adapt.fixes(this).any { it.say.equals(heard, true) && it.write == meant }) return
+        BubbleService.instance?.offerWord(heard, meant)
     }
 
     /** Screen y of the keyboard's top edge, or -1 when no keyboard is open. */

@@ -41,6 +41,25 @@ class DictionaryActivity : Screen() {
         page.addView(l, Ui.lp(this, 14))
         fillList()
 
+        // What it picked up by itself.
+        val fixes = Adapt.fixes(this)
+        val learned = Adapt.learnedWords(this)
+        if (fixes.isNotEmpty() || learned.isNotEmpty()) {
+            page.addView(Ui.sectionTitle(this, "What it learned"))
+            val rows = fixes.map { f ->
+                Ui.row(this, R.drawable.ui_check, "green", "${f.say} → ${f.write}", sub = "Fixed automatically", chevron = false) {
+                    Ui.dialog(this).setMessage("Stop fixing \"${f.say}\" → \"${f.write}\"?")
+                        .setPositiveButton("Stop") { _, _ -> Adapt.removeFix(this, f); render() }
+                        .setNegativeButton("Cancel", null).show()
+                }
+            }.toMutableList<android.view.View>()
+            if (learned.isNotEmpty()) rows += Ui.row(this, R.drawable.ui_spark, "gold", "Names you use",
+                sub = learned.take(12).joinToString(", ") + if (learned.size > 12) "…" else "", chevron = false)
+            page.addView(Ui.group(this, rows))
+            page.addView(Ui.note(this, "Tap a fix to stop it. Turn learning off on Home (Learn how I talk).")
+                .apply { setPaddingRelative(dp(4), dp(8), dp(4), 0) })
+        }
+
         // Ready-made packs: one switch adds all their words.
         page.addView(Ui.sectionTitle(this, "Word packs"))
         page.addView(Ui.group(this, Packs.all.map { pk ->

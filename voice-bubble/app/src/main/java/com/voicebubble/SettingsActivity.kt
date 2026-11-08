@@ -113,6 +113,11 @@ class SettingsActivity : Screen() {
             Ui.switchRow(this, R.drawable.ui_clock, "blue", "Keep history", "Recent dictations on Home (last 50)", Stats.historyOn(this)) { on ->
                 Stats.setHistoryOn(this, on)
             },
+            Ui.row(this, R.drawable.ui_reset, "red", "Forget what it learned", chevron = false, danger = true) {
+                Ui.dialog(this).setMessage("Forget remembered fixes, the names it noticed and your recent writing?")
+                    .setPositiveButton("Forget") { _, _ -> Adapt.forget(this); toast("Forgotten") }
+                    .setNegativeButton("Cancel", null).show()
+            },
             Ui.row(this, R.drawable.ui_trash, "red", "Clear history", chevron = false, danger = true) {
                 Ui.dialog(this).setMessage("Delete all recent dictations?")
                     .setPositiveButton("Delete") { _, _ -> Stats.clearHistory(this); toast("History cleared") }
