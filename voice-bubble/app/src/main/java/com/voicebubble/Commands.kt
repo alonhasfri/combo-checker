@@ -97,7 +97,7 @@ object Commands {
         if (Regex("^(talk|speak|sound) normal(ly)?|^normal (mode|voice)|^stop (talking|sounding|speaking) like|^no more (persona|character)").containsMatchIn(n))
             return Cmd.Persona(null)
         // "make me sound like Shakespeare", "talk like Rouxls Kaard from now on", "in the style of a pirate".
-        Regex("^(?:make (?:me|it|this) sound like|sound like|talk like|speak like|write like|say it like|rewrite (?:it |this )?like|in the style of|(?:always )?(?:talk|sound) like)\\s+(.+)$")
+        Regex("^(?:make (?:me|it|this) (?:sound|talk|speak|write|look) like|make (?:me|it|this) (?:sound|talk|speak) as|sound like|talk like|speak like|write like|say it like|say this like|rewrite (?:it |this )?(?:like|as)|in the style of|(?:always )?(?:talk|sound|speak) like)\\s+(.+)$")
             .find(n)?.let { mm ->
                 val lasting = Regex("\\b(from now on|for now|until i say|always|mode)\\b").containsMatchIn(n) || n.startsWith("always")
                 // The name as you said it (keeps capitals), without "from now on".
@@ -123,6 +123,10 @@ object Commands {
             val instr = rest.replace(Regex("^(?i)(?:reply|answer)[\\s,.:;!-]*"), "").trim().trimEnd('.')
             return Cmd.Reply(instr)
         }
+        // Anything else that starts like an instruction ("turn this into a rap", "add more emojis")
+        // is a rewrite request for the AI.
+        if (Regex("^(make|turn|change|rewrite|fix|add|remove|put|use|write|talk|speak|say|shorten|lengthen|convert|reword|rephrase|improve|translate|correct|expand|simplify|format)\\b").containsMatchIn(n))
+            return Cmd.Rewrite(rest.trim().trimEnd('.'))
         return Cmd.Unknown(rest)
     }
 
