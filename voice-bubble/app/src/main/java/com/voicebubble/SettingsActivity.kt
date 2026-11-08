@@ -76,6 +76,8 @@ class SettingsActivity : Screen() {
         page.addView(Ui.group(this, listOf(
             Ui.row(this, R.drawable.ui_key, "purple", "AI key",
                 value = if (Ai.hasKey(this)) Ai.provider(this) + " ✓" else "Not set") { aiKeyDialog() },
+            Ui.switchRow(this, R.drawable.ui_zap, "orange", "Fast Claude",
+                "With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5", prefs.aiFast) { on -> prefs.aiFast = on },
         )))
         page.addView(Ui.note(this, "Needed for rewrite, reply suggestions and translating into languages other than English. " +
                 "Use the same key as Comboed: a free Google Gemini key (AIza…) or OpenRouter key (sk-or-…). An Anthropic key (sk-ant-…) for Claude works too. " +

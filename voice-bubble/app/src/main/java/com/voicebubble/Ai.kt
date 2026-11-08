@@ -71,27 +71,27 @@ object Ai {
         val k = key(c)
         if (k.isEmpty()) throw Failure("Add an AI key first (Settings → AI)")
         val text = when {
-            k.startsWith("sk-ant") -> claude(k, system, user)
+            k.startsWith("sk-ant") -> claude(k, system, user, Prefs(c).aiFast)
             k.startsWith("sk-or-") -> openRouter(k, system, user)
             else -> gemini(k, system, user)
         }
         return text.trim().ifEmpty { throw Failure("The AI sent back nothing. Try again") }
     }
 
-    private fun claude(key: String, system: String, user: String): String {
+    private fun claude(key: String, system: String, user: String, fast: Boolean): String {
         val client = AnthropicOkHttpClient.builder().apiKey(key).timeout(Duration.ofSeconds(60)).build()
         try {
-            val params = MessageCreateParams.builder()
-                .model("claude-opus-5-5")
+            val builder = MessageCreateParams.builder()
+                .model(if (fast) "claude-haiku-5-5" else "claude-opus-5-5")
                 .maxTokens(4000L)
                 .system(system)
                 .addUserMessage(user)
                 // Short edits don't need deep thinking: low effort keeps it quick and cheap.
                 .outputConfig(BetaOutputConfig.builder().effort(BetaOutputConfig.Effort.LOW).build())
-                // If the model declines, the server retries on a fallback model by itself.
-                .addBeta(AnthropicBeta.of("server-side-fallback-2026-07-01"))
+            // If Claude Opus declines, the server retries on a fallback model by itself (not offered for Haiku).
+            if (!fast) builder.addBeta(AnthropicBeta.of("server-side-fallback-2026-07-01"))
                 .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
-                .build()
+            val params = builder.build()
             val msg = client.beta().messages().create(params)
             if (msg.stopReason().map { it.toString() }.orElse("") == "refusal") throw Failure("Claude declined this one")
             return msg.content().mapNotNull { b -> b.text().orElse(null)?.text() }.joinToString("")
@@ -144,7 +144,10 @@ object Ai {
             val body = JSONObject()
                 .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
                 .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", user)))))
-            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent")
+                // No "thinking" first: it adds seconds and isn't needed to rewrite or translate a sentence.
+                .put("generationConfig", JSONObject().put("thinkingConfig", JSONObject().put("thinkingBudget", 0)))
+            // Flash-Lite: Google's quickest model, plenty for rewriting and translating.
+            val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent")
                 .openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 15000

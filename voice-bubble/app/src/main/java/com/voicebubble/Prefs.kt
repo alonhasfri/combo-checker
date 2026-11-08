@@ -51,6 +51,9 @@ object Langs {
 
 class Prefs(private val ctx: Context) {
     private val p = ctx.getSharedPreferences("voice", Context.MODE_PRIVATE)
+    /** Positions are remembered separately for portrait ("") and landscape ("_l"). */
+    private val orient get() =
+        if (ctx.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "_l" else ""
     /** Never picked: use a model that's already downloaded (older builds' default), else the recommended one. */
     var modelId: String
         get() = p.getString("model", null)
@@ -95,8 +98,8 @@ class Prefs(private val ctx: Context) {
         set(v) = p.edit().putBoolean("dock", v).apply()
     /** How far above the keyboard you dragged it (px). */
     var dockLift: Int
-        get() = p.getInt("dockLift", 0)
-        set(v) = p.edit().putInt("dockLift", v).apply()
+        get() = p.getInt("dockLift" + orient, 0)
+        set(v) = p.edit().putInt("dockLift" + orient, v).apply()
     /** Everything you dictate comes out in CAPITALS (toggled with the ABC button while speaking). */
     var capsLock: Boolean
         get() = p.getBoolean("caps", false)
@@ -136,10 +139,14 @@ class Prefs(private val ctx: Context) {
     var persona: String?
         get() = p.getString("persona", null)
         set(v) = p.edit().putString("persona", v?.trim()?.ifEmpty { null }).apply()
+    /** With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5. */
+    var aiFast: Boolean
+        get() = p.getBoolean("aiFast", false)
+        set(v) = p.edit().putBoolean("aiFast", v).apply()
     var bubbleX: Int
-        get() = p.getInt("bx", -1)
-        set(v) = p.edit().putInt("bx", v).apply()
+        get() = p.getInt("bx" + orient, -1)
+        set(v) = p.edit().putInt("bx" + orient, v).apply()
     var bubbleY: Int
-        get() = p.getInt("by", -1)
-        set(v) = p.edit().putInt("by", v).apply()
+        get() = p.getInt("by" + orient, -1)
+        set(v) = p.edit().putInt("by" + orient, v).apply()
 }

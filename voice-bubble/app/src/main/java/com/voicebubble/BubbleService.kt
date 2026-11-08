@@ -331,6 +331,21 @@ class BubbleService : Service() {
         positionLive()
     }
 
+    /** Rotated: use the position you chose for this orientation (portrait and landscape are separate). */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        main.postDelayed({
+            val v = view ?: return@postDelayed
+            val dm = resources.displayMetrics
+            lp.x = (prefs.bubbleX.takeIf { it >= 0 } ?: (dm.widthPixels - size)).coerceIn(0, maxOf(0, dm.widthPixels - size))
+            homeY = (prefs.bubbleY.takeIf { it >= 0 } ?: (dm.heightPixels / 3)).coerceIn(0, maxOf(0, dm.heightPixels - size))
+            lp.y = homeY
+            lastKbTop = null
+            runCatching { wm.updateViewLayout(v, lp) }
+            updateBubble()
+        }, 150)
+    }
+
     /** Called by the accessibility service when windows change (keyboard opened/closed). */
     fun keyboardMayHaveChanged() = watcher?.poke()
 
@@ -470,7 +485,8 @@ class BubbleService : Service() {
 
     private fun onTap() {
         when {
-            working -> cancelWork()
+            // While it's working, a tap does nothing (no accidental cancels); hold the bubble to cancel.
+            working -> toast("Still working… hold the bubble to cancel")
             recorder.isRecording -> finishRecording()
             else -> startRecording()
         }
@@ -1031,13 +1047,15 @@ class BubbleService : Service() {
     /** Shows the bubble only while typing (if that's on), and keeps it above the keyboard. */
     private fun updateBubble() {
         val v = view ?: return
-        val busy = recorder.isRecording || working
+        // Only a recording keeps it on screen without a keyboard: AI and text work finish in the background.
+        val busy = recorder.isRecording
         // Hide only when keyboard detection is confirmed to work on this phone (the accessibility
         // service sees the keyboard directly; otherwise Home verifies it). Otherwise always show.
         val verified = InsertService.isOn || (prefs.keyboardVerified && !prefs.keyboardBroken)
         val show = !prefs.onlyWithKeyboard || !verified || keyboardOpen || busy
         val vis = if (show) View.VISIBLE else View.GONE
         if (v.visibility != vis) v.visibility = vis
+        liveView?.visibility = vis
 
         val dock = dockedY()
         val y = when {
