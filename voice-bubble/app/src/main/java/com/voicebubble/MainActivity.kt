@@ -215,6 +215,14 @@ class MainActivity : Screen() {
         rows += Ui.row(this, R.drawable.ui_file, "orange", "Length limit",
             value = if (prefs.maxChars > 0) "${prefs.maxChars} characters" else "Off",
             sub = "Longest message. Roblox gets 200 automatically") { pickLimit(this) { render() } }
+        rows += Ui.row(this, R.drawable.ui_wand, "purple", "AI text length", value = Ai.lengthName(prefs.aiLength),
+            sub = "Talk like, rewrite, reply and summary. Or say \"${prefs.commandWord}, short\" / \"medium\" / \"long\"") {
+            val names = Ai.lengths.map { it.second }.toTypedArray()
+            val cur = Ai.lengths.indexOfFirst { it.first == prefs.aiLength }.coerceAtLeast(0)
+            Ui.dialog(this).setTitle("How long should AI text be?").setSingleChoiceItems(names, cur) { d, i ->
+                prefs.aiLength = Ai.lengths[i].first; d.dismiss(); render()
+            }.setNegativeButton("Cancel", null).show()
+        }
         if (prefs.engine == "live" && BuildConfig.AUTOTYPE) rows += Ui.switchRow(this, R.drawable.ui_wand, "gold", "Type while I talk",
             "Live engine: words appear in the text box as you speak", prefs.typeWhileTalking) { on -> prefs.typeWhileTalking = on }
         if (prefs.engine == "live") rows += Ui.switchRow(this, R.drawable.ui_target, "purple", "Whisper checks the final text",
@@ -273,6 +281,7 @@ class MainActivity : Screen() {
             "• \"$w, reply\" / \"…reply in gen z\" / \"…reply like Gojo, saying I'm late\"\n" +
             "• \"$w, summarise\" (the chat on screen)\n" +
             "• \"$w, make me sound like Shakespeare\" / \"…talk like Rouxls Kaard from now on\" / \"…talk normally\"\n" +
+            "• \"$w, short\" / \"…medium\" / \"…long\": how long AI text is (also after what you say)\n" +
             "• \"$w, offline Shakespeare\" (instant) / \"…AI Shakespeare\" / \"…back to normal\"\n" +
             "• \"$w, undo\", or just \"scratch that\"\n" +
             "Rewrite, reply, summarise and most translations need an AI key (Settings → AI). Reply, summarise and undo need the autotype version."

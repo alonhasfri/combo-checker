@@ -172,3 +172,27 @@ class LimitTest {
         assertEquals("five six seven", d)
     }
 }
+
+class LengthCommandTest {
+    @Test fun lastingLengths() {
+        assertEquals(Cmd.Length("short"), Commands.parse("Out of context, short."))
+        assertEquals(Cmd.Length("short"), Commands.parse("out of context short mode"))
+        assertEquals(Cmd.Length("short"), Commands.parse("Out of context, keep it short."))
+        assertEquals(Cmd.Length("medium"), Commands.parse("out of context, medium length"))
+        assertEquals(Cmd.Length("long"), Commands.parse("Out of context, long."))
+        assertEquals(Cmd.Length("long"), Commands.parse("out of context, long answers from now on"))
+        assertEquals(Cmd.Length(""), Commands.parse("out of context, normal length"))
+        assertEquals(Cmd.Length(""), Commands.parse("out of context, stop short mode"))
+    }
+
+    @Test fun oneOffRewritesStay() {
+        assertEquals(Cmd.Rewrite("make this shorter"), Commands.parse("Out of context, make this shorter"))
+        assertEquals(Cmd.Rewrite("make it short"), Commands.parse("Out of context, make it short"))
+        assertEquals(Cmd.Persona(null), Commands.parse("Out of context, normal."))
+    }
+
+    @Test fun afterText() {
+        assertEquals(Commands.Split("I'm heading home now", Cmd.Length("short")),
+            Commands.split("I'm heading home now, out of context, short."))
+    }
+}

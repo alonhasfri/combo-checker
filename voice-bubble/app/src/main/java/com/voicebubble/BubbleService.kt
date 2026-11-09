@@ -709,6 +709,12 @@ class BubbleService : Service() {
                         before == null -> runCommand(cmd)
                         // "…text…, out of context, make this longer": rewrite what you just said, then type it.
                         cmd is Commands.Cmd.Rewrite -> rewrite(cmd.instruction, before, s.limit)
+                        // "…text…, out of context, short": that length from now on, starting with this text.
+                        cmd is Commands.Cmd.Length && Ai.hasKey(this) && (cmd.length.isNotEmpty() || prefs.persona != null) -> {
+                            runCommand(cmd)
+                            val p = prefs.persona
+                            rewrite(if (p != null) "Make me sound like $p" else "Keep what I said, in my own voice", before, s.limit)
+                        }
                         else -> { deliver(before, s.limit); Stats.record(this, before, seconds, s.app); runCommand(cmd) }
                     }
                 }
@@ -950,6 +956,14 @@ class BubbleService : Service() {
                     cmd.who == null -> "Back to your normal voice"
                     !Ai.hasKey(this) -> "Talking like ${cmd.who} needs an AI key (Settings → AI)"
                     else -> "Talking like ${cmd.who} until you say \"${prefs.commandWord}, talk normally\""
+                })
+            }
+            is Commands.Cmd.Length -> {
+                prefs.aiLength = cmd.length
+                toast(when {
+                    cmd.length.isEmpty() -> "AI text: as long as you said it"
+                    !Ai.hasKey(this) -> "${Ai.lengthName(cmd.length)} AI text needs an AI key (Settings → AI)"
+                    else -> "AI text: ${Ai.lengthName(cmd.length).lowercase()} from now on"
                 })
             }
             is Commands.Cmd.Unknown -> toast("Didn't get that command: \"${cmd.said.take(40)}\"")

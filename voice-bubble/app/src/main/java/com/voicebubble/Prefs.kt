@@ -139,6 +139,10 @@ class Prefs(private val ctx: Context) {
     var persona: String?
         get() = p.getString("persona", null)
         set(v) = p.edit().putString("persona", v?.trim()?.ifEmpty { null }).apply()
+    /** How long AI text should be: "" (as you said it), "short", "medium" or "long". */
+    var aiLength: String
+        get() = p.getString("aiLength", "")!!
+        set(v) = p.edit().putString("aiLength", v).apply()
     /** With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5. */
     var aiFast: Boolean
         get() = p.getBoolean("aiFast", false)

@@ -86,7 +86,7 @@ Style → **gen z** writes like a text: no caps, tbh / fr / ngl / idk / rn / omw
 ## Commands and helpers
 Say **"out of context"** first to give a command instead of typing:
 "…enable numbers and dates", "…disable filler remover", "…rewrite, make this more polite",
-"…make this shorter", "…translate to Spanish", "…stop translating", "…reply (saying …)", "…undo".
+"…make this shorter", "…translate to Spanish", "…stop translating", "…reply (saying …)", "…undo", "…short" / "…medium" / "…long" (how long AI text is).
 Helpers (Home → Writing helpers, each switchable): voice commands ("new line", "question mark",
 "scratch that"), emoji by voice ("fire emoji"), filler remover, numbers & dates.
 AI features (rewrite, reply, translation into languages other than English) use your own free

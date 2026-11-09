@@ -36,13 +36,39 @@ object Ai {
     private fun limitNote(maxChars: Int?) =
         if (maxChars != null && maxChars > 0) "\n\nHard limit: the result must be at most $maxChars characters long (shorten it if needed)." else ""
 
+    /** Names for the length choice, shown in the app. */
+    val lengths = listOf("" to "As I said it", "short" to "Short", "medium" to "Medium", "long" to "Long")
+    fun lengthName(v: String) = lengths.firstOrNull { it.first == v }?.second ?: "As I said it"
+
+    private fun lengthNote(c: Context, kind: String): String = when (Prefs(c).aiLength) {
+        "short" -> when (kind) {
+            "reply" -> "\n\nLength: short. Each reply is a few words, like a quick text."
+            "summary" -> "\n\nLength: short. Just 2 bullet points."
+            else -> "\n\nLength: short. Make the result clearly shorter than the text, about half as long, one or two sentences at most."
+        }
+        "medium" -> when (kind) {
+            "reply" -> "\n\nLength: medium. Each reply is one full sentence."
+            "summary" -> "\n\nLength: medium. 3 or 4 bullet points."
+            else -> "\n\nLength: medium. Keep the result about as long as the text."
+        }
+        "long" -> when (kind) {
+            "reply" -> "\n\nLength: long. Each reply is 2 or 3 sentences."
+            "summary" -> "\n\nLength: long. 5 to 7 bullet points with details."
+            else -> "\n\nLength: long. Make the result about twice as long as the text: add natural detail and flair, without changing what they meant."
+        }
+        else -> ""
+    }
+
     fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String = ask(c,
         "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
             "the language and any names. If they want to sound like a person, character or style (Shakespeare, " +
             "a video game character, a pirate…), go all the way: imitate their typical words, grammar, spelling " +
             "quirks and catchphrases, while still saying what the person wanted to say. " +
             "Reply with only the new text: no quotes, no explanation.",
-        "Instruction: $instruction\n\nText:\n$text" + limitNote(maxChars))
+        "Instruction: $instruction\n\nText:\n$text" +
+            // A one-off "make this shorter" wins over the lasting length.
+            (if (Regex("(?i)\\b(short|long|length|brief|expand)").containsMatchIn(instruction)) "" else lengthNote(c, "rewrite")) +
+            limitNote(maxChars))
 
     fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = ask(c,
         "You translate text someone dictated by voice. Keep the tone, names and emoji. " +
@@ -57,7 +83,7 @@ object Ai {
                 "short replies they could send next, written as they would text. Their request may say what to reply, " +
                 "how to say it (a style like gen z slang, formal or flirty, or a character to sound like), or both: follow it. " +
                 "One reply per line, no numbering, no quotes.",
-            (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat")
+            (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat" + lengthNote(c, "reply"))
         return out.lines().map { it.trim().removePrefix("-").removePrefix("•").trim().trim('"') }
             .filter { it.isNotEmpty() }.take(3)
     }
@@ -67,7 +93,7 @@ object Ai {
         "You summarise what's on someone's phone screen, usually a chat. Ignore buttons and other noise. " +
             "Give 2 to 5 short bullet points (start each with •) covering what was said and anything they need to " +
             "answer or do. Plain text only.",
-        (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat")
+        (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat" + lengthNote(c, "summary"))
 
     /** Blocking call: run it off the main thread. Throws [Failure] with a message you can show. */
     private fun ask(c: Context, system: String, user: String): String {

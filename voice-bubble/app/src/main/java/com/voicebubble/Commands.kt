@@ -36,6 +36,8 @@ object Commands {
         data class Persona(val who: String?) : Cmd()
         /** Shakespeare mode on, either instant (on the phone) or the AI version. */
         data class ShakespeareMode(val instant: Boolean) : Cmd()
+        /** How long AI text should be from now on: "short", "medium", "long", or "" for as you said it. */
+        data class Length(val length: String) : Cmd()
         object Undo : Cmd()
         data class Unknown(val said: String) : Cmd()
     }
@@ -104,6 +106,33 @@ object Commands {
         return null
     }
 
+    /**
+     * "short", "short mode", "keep it short", "long answers", "medium length", "normal length".
+     * ("make this shorter" stays a one-off rewrite.)
+     */
+    private fun length(n: String): String? {
+        Regex("^(?:keep (?:it|them|everything|things|my messages|messages|replies|answers) |always |use |switch to |go |set (?:it |length |the length )?to )?" +
+            "(short|shorter|brief|medium|middle|normal|regular|long|longer|any|no)" +
+            "(?: (?:mode|length|size|answers|replies|messages|ones|texts?))?(?: from now on| please)?$").find(n)?.let { m ->
+            val word = m.groupValues[1]
+            val plain = m.value == word
+            // Bare "normal" means "talk normally", not a length; "any"/"no" only with "length".
+            if (word in setOf("normal", "regular", "any", "no") && !Regex("\\b(length|size)\\b").containsMatchIn(n)) return null
+            if (plain && word in setOf("shorter", "longer")) return null
+            return when (word) {
+                "short", "shorter", "brief" -> "short"
+                "medium", "middle" -> "medium"
+                "long", "longer" -> "long"
+                else -> ""
+            }
+        }
+        Regex("^(?:length|size) (short|medium|long|normal|off|any)$").find(n)?.let { m ->
+            return when (val w = m.groupValues[1]) { "short", "medium", "long" -> w; else -> "" }
+        }
+        if (Regex("^(?:stop|turn off|disable|no more) (?:short|long|medium) (?:mode|length|answers)$").matches(n)) return ""
+        return null
+    }
+
     /** Null when it's normal dictation (command at the start only; "um"/"okay" before it is fine). */
     fun parse(text: String, word: String = DEFAULT_WORD): Cmd? {
         val phrase = phraseWords(word)
@@ -132,6 +161,7 @@ object Commands {
                 "^stop (?:the )?(?:character|persona|voice|accent|shakespeare)|^no more (?:persona|character|shakespeare)|" +
                 "^(?:turn off|disable) (?:the )?(?:character|persona|talk like)|^be (?:myself|me)\\b|^my (?:own|normal) voice").containsMatchIn(n))
             return Cmd.Persona(null)
+        length(n)?.let { return Cmd.Length(it) }
         // "offline Shakespeare" / "switch to AI Shakespeare": Shakespeare mode, instant or AI.
         Regex("^(?:(?:switch|change|go) (?:to )?|use |turn on |enable |start )?(?:the )?" +
             "(instant|offline|fast|quick|simple|ai|a i|online|smart|better|full|real|good|normal) shakespeare(?: mode| version| one)?$")
