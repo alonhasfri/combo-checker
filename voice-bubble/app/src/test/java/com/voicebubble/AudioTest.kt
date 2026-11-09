@@ -72,7 +72,7 @@ class AdaptTest {
 
 class PersonaTest {
     @Test fun oneTimeAndLasting() {
-        assertEquals(Cmd.Rewrite("Make me sound like Shakespeare"), Commands.parse("Out of context, make me sound like Shakespeare."))
+        assertEquals(Cmd.Rewrite("Make me sound like ${Royal.NAME}"), Commands.parse("Out of context, make me sound like Shakespeare."))
         assertEquals(Commands.Split("Could I get a Big Mac", Cmd.Rewrite("Make me sound like Rouxls Kaard")),
             Commands.split("Could I get a Big Mac, out of context, make me sound like Rouxls Kaard."))
         assertEquals(Cmd.Rewrite("Make me sound like a pirate"), Commands.parse("out of context, in the style of a pirate"))
@@ -135,12 +135,13 @@ class DictionaryFixesTest {
     }
 }
 
-class ShakespeareTest {
+class RoyalTest {
     @Test fun instant() {
-        assertEquals("Forsooth, art thou coming to the party? I bethink 'tis most fun.",
-            Shakespeare.apply("Are you coming to the party? I think it is very fun."))
-        assertEquals("Good morrow, I thank thee for thy help.", Shakespeare.apply("Hello, thank you for your help."))
-        assertEquals("Nay, I have no coin.", Shakespeare.apply("No, I have no money."))
+        assertEquals("Pray tell, peasant, art thou coming to the party? We deem 'tis most fun.",
+            Royal.apply("Are you coming to the party? I think it is very fun."))
+        assertEquals("Good morrow, We thank thee for thy aid.", Royal.apply("Hello, thank you for your help."))
+        assertEquals("Nay, We have no gold.", Royal.apply("No, I have no money."))
+        assertEquals("Hark, peasant! We require victuals at once.", Royal.apply("I need food right now."))
     }
 
     @Test fun turningCharacterModeOff() {
@@ -151,12 +152,16 @@ class ShakespeareTest {
     }
 }
 
-class ShakespeareModeTest {
+class RoyalModeTest {
     @Test fun switching() {
-        assertEquals(Cmd.ShakespeareMode(true), Commands.parse("Hey bubble, offline Shakespeare.", "hey bubble"))
-        assertEquals(Cmd.ShakespeareMode(true), Commands.parse("Hey bubble, switch to instant Shakespeare", "hey bubble"))
-        assertEquals(Cmd.ShakespeareMode(false), Commands.parse("Hey bubble, AI Shakespeare", "hey bubble"))
-        assertEquals(Cmd.ShakespeareMode(false), Commands.parse("hey bubble switch to the better Shakespeare one", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(true), Commands.parse("Hey bubble, offline Shakespeare.", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(true), Commands.parse("Hey bubble, switch to instant royal", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(false), Commands.parse("Hey bubble, AI royal", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(false), Commands.parse("hey bubble switch to the better Shakespeare one", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(null), Commands.parse("Hey bubble, royal mode.", "hey bubble"))
+        assertEquals(Cmd.RoyalMode(null), Commands.parse("hey bubble medieval English", "hey bubble"))
+        assertEquals(Cmd.Persona(Royal.NAME), Commands.parse("Hey bubble, talk like a royal from now on", "hey bubble"))
+        assertEquals(Cmd.Persona(null), Commands.parse("Hey bubble, stop royal mode", "hey bubble"))
         assertEquals(Cmd.Persona(null), Commands.parse("Hey bubble, back to normal.", "hey bubble"))
     }
 }

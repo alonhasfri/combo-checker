@@ -61,7 +61,7 @@ object Ai {
 
     fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String = ask(c,
         "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
-            "the language and any names. If they want to sound like a person, character or style (Shakespeare, " +
+            "the language and any names. If they want to sound like a person, character or style (a 1500s royal, " +
             "a video game character, a pirate…), go all the way: imitate their typical words, grammar, spelling " +
             "quirks and catchphrases, while still saying what the person wanted to say. " +
             "Reply with only the new text: no quotes, no explanation.",

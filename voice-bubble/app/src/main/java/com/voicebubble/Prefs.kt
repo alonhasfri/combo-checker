@@ -137,7 +137,8 @@ class Prefs(private val ctx: Context) {
     fun setThreadsFor(modelFile: String, n: Int) = p.edit().putInt("threads_$modelFile", n).apply()
     /** Everything you dictate is rewritten to sound like this person or style (null = off). Needs an AI key. */
     var persona: String?
-        get() = p.getString("persona", null)
+        // "Shakespeare" from older versions is now Royal English.
+        get() = p.getString("persona", null)?.let { if (it.equals("Shakespeare", ignoreCase = true)) Royal.NAME else it }
         set(v) = p.edit().putString("persona", v?.trim()?.ifEmpty { null }).apply()
     /** How long AI text should be: "" (as you said it), "short", "medium" or "long". */
     var aiLength: String
@@ -147,8 +148,8 @@ class Prefs(private val ctx: Context) {
     var aiFast: Boolean
         get() = p.getBoolean("aiFast", false)
         set(v) = p.edit().putBoolean("aiFast", v).apply()
-    /** Shakespeare without AI: instant, on the phone (simpler than the AI version). */
-    var instantShakespeare: Boolean
+    /** Royal English without AI: instant, on the phone (simpler than the AI version). */
+    var instantRoyal: Boolean
         get() = p.getBoolean("instantShakespeare", false)
         set(v) = p.edit().putBoolean("instantShakespeare", v).apply()
     /** "whisper" or "live" (streaming, types as you talk; English only). */

@@ -280,9 +280,9 @@ class MainActivity : Screen() {
             "• \"$w, translate to Spanish\" / \"…stop translating\"\n" +
             "• \"$w, reply\" / \"…reply in gen z\" / \"…reply like Gojo, saying I'm late\"\n" +
             "• \"$w, summarise\" (the chat on screen)\n" +
-            "• \"$w, make me sound like Shakespeare\" / \"…talk like Rouxls Kaard from now on\" / \"…talk normally\"\n" +
+            "• \"$w, make me sound like a royal\" / \"…talk like Rouxls Kaard from now on\" / \"…talk normally\"\n" +
             "• \"$w, short\" / \"…medium\" / \"…long\": how long AI text is (also after what you say)\n" +
-            "• \"$w, offline Shakespeare\" (instant) / \"…AI Shakespeare\" / \"…back to normal\"\n" +
+            "• \"$w, royal mode\" (1500s royal English) / \"…offline royal\" (instant) / \"…AI royal\" / \"…back to normal\"\n" +
             "• \"$w, undo\", or just \"scratch that\"\n" +
             "Rewrite, reply, summarise and most translations need an AI key (Settings → AI). Reply, summarise and undo need the autotype version."
         ).apply { setPaddingRelative(0, dp(8), 0, 0) })
@@ -309,7 +309,7 @@ class MainActivity : Screen() {
             "Goku", "Vegeta", "Naruto", "Luffy", "Zoro", "All Might", "Light Yagami", "Saitama", "Rimuru",
             "Mario", "Sonic", "Kratos", "GLaDOS", "a Minecraft villager",
             // Famous voices & styles
-            "Shakespeare", "Yoda", "Gollum", "Sherlock Holmes", "a pirate", "a medieval knight", "a cowboy",
+            Royal.NAME, "Yoda", "Gollum", "Sherlock Holmes", "a pirate", "a cowboy",
             "a news reporter", "a sports commentator", "a motivational coach", "a robot", "a villain monologue",
             "a fairy tale narrator", "a Gen Z teenager", "a grumpy old man", "an overly polite butler",
         )

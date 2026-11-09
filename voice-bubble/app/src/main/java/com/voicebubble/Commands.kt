@@ -34,8 +34,8 @@ object Commands {
         data class Summarize(val instruction: String) : Cmd()
         /** Rewrite everything from now on to sound like someone (null = back to normal). */
         data class Persona(val who: String?) : Cmd()
-        /** Shakespeare mode on, either instant (on the phone) or the AI version. */
-        data class ShakespeareMode(val instant: Boolean) : Cmd()
+        /** Royal English on: instant (on the phone), the AI version, or null = whichever you used last. */
+        data class RoyalMode(val instant: Boolean?) : Cmd()
         /** How long AI text should be from now on: "short", "medium", "long", or "" for as you said it. */
         data class Length(val length: String) : Cmd()
         object Undo : Cmd()
@@ -158,16 +158,17 @@ object Commands {
         // "talk normally" / "stop talking like Shakespeare": persona off.
         if (Regex("^(?:(?:make|let) (?:me|it|this) )?(?:talk|speak|sound|be|write) normal(?:ly)?|^(?:go )?back to normal|" +
                 "^normal(?: mode| voice| me)?$|^stop (?:talking|sounding|speaking|writing) like|" +
-                "^stop (?:the )?(?:character|persona|voice|accent|shakespeare)|^no more (?:persona|character|shakespeare)|" +
+                "^stop (?:the )?(?:character|persona|voice|accent|shakespeare|royal|medieval)|^no more (?:persona|character|shakespeare|royal|medieval)|" +
                 "^(?:turn off|disable) (?:the )?(?:character|persona|talk like)|^be (?:myself|me)\\b|^my (?:own|normal) voice").containsMatchIn(n))
             return Cmd.Persona(null)
         length(n)?.let { return Cmd.Length(it) }
-        // "offline Shakespeare" / "switch to AI Shakespeare": Shakespeare mode, instant or AI.
+        // "royal mode" / "offline royal" / "switch to AI royal" (and the old "offline Shakespeare"): Royal English.
         Regex("^(?:(?:switch|change|go) (?:to )?|use |turn on |enable |start )?(?:the )?" +
-            "(instant|offline|fast|quick|simple|ai|a i|online|smart|better|full|real|good|normal) shakespeare(?: mode| version| one)?$")
+            "(?:(instant|offline|fast|quick|simple|ai|a i|online|smart|better|full|real|good|normal) )?" +
+            "(?:shakespeare|royal|medieval|old english)(?: english)?(?: mode| version| one| talk)?$")
             .find(n)?.let { mm ->
-                val instant = mm.groupValues[1] in setOf("instant", "offline", "fast", "quick", "simple")
-                return Cmd.ShakespeareMode(instant)
+                val q = mm.groupValues[1]
+                return Cmd.RoyalMode(if (q.isEmpty()) null else q in setOf("instant", "offline", "fast", "quick", "simple"))
             }
         // "make me sound like Shakespeare", "talk like Rouxls Kaard from now on", "in the style of a pirate".
         Regex("^(?:make (?:me|it|this) (?:sound|talk|speak|write|look) like|make (?:me|it|this) (?:sound|talk|speak) as|sound like|talk like|speak like|write like|say it like|say this like|rewrite (?:it |this )?(?:like|as)|in the style of|(?:always )?(?:talk|sound|speak) like)\\s+(.+)$")
@@ -177,7 +178,9 @@ object Commands {
                 val who = rest.replace(Regex("^(?i).*?\\blike\\s+|^(?i)in the style of\\s+"), "")
                     .replace(Regex("(?i)[\\s,]*(from now on|for now|until i say.*|mode|always)[.!]*$"), "")
                     .trim().trimEnd('.', '!', ',').ifEmpty { mm.groupValues[1] }
-                return if (lasting) Cmd.Persona(who) else Cmd.Rewrite("Make me sound like $who")
+                // Shakespeare, medieval, royal… all mean Royal English now.
+                val named = if (Royal.wanted(who)) Royal.NAME else who
+                return if (lasting) Cmd.Persona(named) else Cmd.Rewrite("Make me sound like $named")
             }
         if (n.startsWith("stop translating") || n == "translation off" || n == "no translation") return Cmd.Translate(null)
         Regex("^translate (?:it |this |everything )?(?:to|into) ([\\p{L} ]+)$").find(n)?.let { return Cmd.Translate(it.groupValues[1].trim()) }

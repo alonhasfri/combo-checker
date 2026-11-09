@@ -724,10 +724,10 @@ class BubbleService : Service() {
             var problem: String? = null
             // "Talk like …" mode: every dictation rewritten in that voice.
             val persona = prefs.persona
-            if (text != null && Shakespeare.wanted(persona) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
-                text = Shakespeare.apply(text)   // instant, no AI
+            if (text != null && Royal.wanted(persona) && (prefs.instantRoyal || !Ai.hasKey(this))) {
+                text = Royal.apply(text)   // instant, no AI
             } else if (text != null && persona != null && Ai.hasKey(this)) {
-                text = try { Ai.rewrite(this, text, "Make me sound like $persona", s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
+                text = try { Ai.rewrite(this, text, Royal.instruction(persona), s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (text != null && s.aiTarget != null) {
                 text = try { Ai.translate(this, text, s.aiTarget, s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
@@ -939,14 +939,14 @@ class BubbleService : Service() {
             is Commands.Cmd.Rewrite -> rewrite(cmd.instruction)
             is Commands.Cmd.Reply -> reply(cmd.instruction)
             is Commands.Cmd.Summarize -> summarize(cmd.instruction)
-            is Commands.Cmd.ShakespeareMode -> {
-                prefs.persona = "Shakespeare"
-                prefs.instantShakespeare = cmd.instant
+            is Commands.Cmd.RoyalMode -> {
+                prefs.persona = Royal.NAME
+                cmd.instant?.let { prefs.instantRoyal = it }
                 refreshLook()
                 toast(when {
-                    cmd.instant -> "Instant Shakespeare on: no waiting"
-                    !Ai.hasKey(this) -> "AI Shakespeare needs an AI key, so it's the instant one for now"
-                    else -> "AI Shakespeare on"
+                    prefs.instantRoyal -> "Royal English on (instant): \"${prefs.commandWord}, talk normally\" to stop"
+                    !Ai.hasKey(this) -> "AI Royal English needs an AI key, so it's the instant one for now"
+                    else -> "AI Royal English on: \"${prefs.commandWord}, talk normally\" to stop"
                 })
             }
             is Commands.Cmd.Persona -> {
@@ -977,9 +977,9 @@ class BubbleService : Service() {
      */
     private fun rewrite(instruction: String, fresh: String? = null, limit: Int? = Limit.forApp(this, AppDetector.current(this))) {
         val text = fresh ?: lastText ?: run { toast("Dictate something first, then ask to rewrite it"); return }
-        // Shakespeare can be done instantly on the phone.
-        if (Shakespeare.wanted(instruction) && (prefs.instantShakespeare || !Ai.hasKey(this))) {
-            val out = Shakespeare.apply(text)
+        // Royal English can be done instantly on the phone.
+        if (Royal.wanted(instruction) && (prefs.instantRoyal || !Ai.hasKey(this))) {
+            val out = Royal.apply(text)
             if (fresh != null) deliver(out)
             else if (InsertService.instance?.replaceLast(out) == true) { lastText = out; buzz(15); showUndo() }
             else { lastText = out; copyOut(out); toast("Copied: paste it over the old one") }
@@ -990,7 +990,7 @@ class BubbleService : Service() {
             fresh?.let { deliver(it) }   // don't lose what you said
             return
         }
-        aiJob({ Ai.rewrite(this, text, instruction, limit) }, onFail = { fresh?.let { deliver(it, limit) } }) { out ->
+        aiJob({ Ai.rewrite(this, text, if (Royal.wanted(instruction)) Royal.AI else instruction, limit) }, onFail = { fresh?.let { deliver(it, limit) } }) { out ->
             if (fresh != null) { deliver(out, limit); return@aiJob }
             lastText = out
             if (InsertService.instance?.replaceLast(out) == true) { buzz(15); toast("Rewritten ✓"); showUndo() }
