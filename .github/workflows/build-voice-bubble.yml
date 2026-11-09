@@ -58,3 +58,12 @@ jobs:
             --title "Voice Bubble build ${{ github.run_number }} (${{ github.ref_name }})" \
             --notes "Voice Bubble: floating microphone, on-device speech to text. On your phone, tap voice-bubble.apk to install (copies the text for you to paste). voice-bubble-autotype.apk also types the text in for you, but Play Protect blocks installing it from a browser." \
             --prerelease --latest=false
+          # One permanent link that always has the newest build: the "voice-bubble-latest" release
+          # (created once, then its files are replaced every build). Also never marked "latest".
+          if ! gh release view voice-bubble-latest >/dev/null 2>&1; then
+            gh release create voice-bubble-latest --title "Voice Bubble (always the newest version)" \
+              --notes "Always the newest Voice Bubble. voice-bubble-autotype.apk types for you (recommended); voice-bubble.apk copies the text instead." \
+              --prerelease --latest=false
+          fi
+          gh release upload voice-bubble-latest voice-bubble.apk voice-bubble-autotype.apk --clobber
+          gh release edit voice-bubble-latest --title "Voice Bubble (always the newest: build ${{ github.run_number }})"
