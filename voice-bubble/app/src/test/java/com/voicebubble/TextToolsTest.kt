@@ -90,3 +90,14 @@ class CommandsTest {
         assertNull(Commands.feature("updates"))
     }
 }
+
+class TranslationLabelTest {
+    @Test fun removesLabels() {
+        assertEquals("שלום, מה קורה?", Ai.cleanTranslation("Message in Hebrew: שלום, מה קורה?", "Hebrew"))
+        assertEquals("שלום, מה קורה?", Ai.cleanTranslation("Message in Hebrew\nשלום, מה קורה?", "Hebrew"))
+        assertEquals("שלום", Ai.cleanTranslation("**Hebrew:** שלום", "Hebrew"))
+        assertEquals("Hola amigo", Ai.cleanTranslation("Here's the translation:\n\"Hola amigo\"", "Spanish"))
+        // Real messages stay as they are.
+        assertEquals("Got your message, see you soon", Ai.cleanTranslation("Got your message, see you soon", "English"))
+    }
+}
