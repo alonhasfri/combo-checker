@@ -517,6 +517,12 @@ class BubbleService : Service() {
         var cutAt = 0                       // audio before this sample is already being turned into text
         val parts = ArrayList<String?>()    // text of each part (null = still working on it)
         var failed = false
+        // Translating while you talk: what has been translated so far, so only the end is left when you stop.
+        @Volatile var preSrc: String? = null
+        @Volatile var preOut: String? = null
+        @Volatile var preBusy = false
+        @Volatile var preWanted: String? = null
+        var preWords = 0                    // words in the last text sent off (only send again once it grew)
     }
 
     private var session: Session? = null
@@ -524,6 +530,8 @@ class BubbleService : Service() {
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     /** The Live engine has its own queue, so live typing never waits behind Whisper. */
     private val liveWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** Translating while you talk runs here, so it never holds up the speech engine. */
+    private val aiWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var liveAnnounced = false
     private var liveView: TextView? = null
     private var offerView: TextView? = null
@@ -650,7 +658,11 @@ class BubbleService : Service() {
                 if (txt == null) s.failed = true
                 s.parts[idx] = txt?.let { clean(it) } ?: ""
             }
-            main.post { if (s.token == sessionToken && s.live == null) showLive(s) }
+            main.post {
+                if (s.token != sessionToken) return@post
+                if (s.live == null) showLive(s)
+                pretranslate(s, synchronized(s) { s.parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" ") })
+            }
         }
     }
 
@@ -730,7 +742,7 @@ class BubbleService : Service() {
                 text = try { Ai.rewrite(this, text, Royal.instruction(persona), s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (text != null && s.aiTarget != null) {
-                text = try { Ai.translate(this, text, s.aiTarget, s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
+                text = try { finishTranslation(s, text, usePre = persona == null) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (caps) text = text?.uppercase()
             main.post {
@@ -751,6 +763,57 @@ class BubbleService : Service() {
         }
     }
 
+    /**
+     * Translating while you talk: each time a good bit more has been said, the text so far is translated in
+     * the background. One at a time; the newest text waits its turn.
+     */
+    private fun pretranslate(s: Session, raw: String) {
+        val target = s.aiTarget ?: return
+        if (prefs.persona != null || !Ai.hasKey(this)) return
+        val words = raw.split(Regex("\\s+")).count { it.isNotBlank() }
+        if (words < 3 || words - s.preWords < 4) return   // wait until there's a few more words
+        if (s.preBusy) { s.preWanted = raw; return }
+        s.preWords = words
+        s.preBusy = true
+        aiWorker.execute {
+            var next: String? = raw
+            while (next != null && s.token == sessionToken) {
+                val src = runCatching { process(next!!, s.style, s.cat) }.getOrDefault(next!!)
+                val out = runCatching { Ai.translate(this, src, target) }.getOrNull()
+                if (out != null && s.token == sessionToken) {
+                    s.preSrc = src; s.preOut = out
+                    main.post { if (s.token == sessionToken) showLiveText("→ $out") }
+                }
+                next = s.preWanted?.takeIf { it != next }
+                s.preWanted = null
+            }
+            s.preBusy = false
+        }
+    }
+
+    /** The final translation: reuses what was translated while you talked, so only the last words are left. */
+    private fun finishTranslation(s: Session, text: String, usePre: Boolean): String {
+        val target = s.aiTarget!!
+        if (usePre) {
+            // A translation already on its way is usually almost the whole thing: wait for it (briefly).
+            val until = System.currentTimeMillis() + 12_000
+            while (s.preBusy && System.currentTimeMillis() < until) Thread.sleep(40)
+            val src = s.preSrc
+            val out = s.preOut
+            if (src != null && out != null) {
+                if (src == text) return out
+                val stem = src.trimEnd('.', ',', '!', '?', ' ')
+                if (stem.length >= 8 && text.startsWith(stem)) {
+                    val tail = text.substring(stem.length).trimStart('.', ',', '!', '?', ' ')
+                    if (tail.isEmpty()) return out
+                    // Just the new words (much quicker than the whole message again).
+                    return out.trimEnd() + " " + Ai.translate(this, tail, target)
+                }
+            }
+        }
+        return Ai.translate(this, text, target, s.limit)
+    }
+
     /** Forget the current dictation: anything still being worked on is dropped. */
     private fun endSession() {
         session?.live?.let { l -> worker.execute { l.cancel() } }
@@ -769,6 +832,12 @@ class BubbleService : Service() {
             if (Features.isOn(this, Commands.Feature.EMOJI)) t = TextTools.emoji(t)
             Words.apply(this, t, capitalize = s.style != Styles.Style.VERY_CASUAL && s.style != Styles.Style.GEN_Z)
         }.getOrDefault(raw)
+        // Translating: the words aren't typed (they'd be in the wrong language); the translation so far is shown instead.
+        if (s.aiTarget != null) {
+            if (!s.whisperFinal) pretranslate(s, raw)
+            showLiveText(s.preOut?.let { "→ $it" } ?: text)
+            return
+        }
         val svc = InsertService.instance
         if (!prefs.typeWhileTalking || svc == null) { showLiveText(text); return }
         if (text.isBlank()) return

@@ -15,12 +15,7 @@ class SettingsActivity : Screen() {
         // Bubble
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
         page.addView(Ui.group(this, listOf(
-            Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(prefs.skin).title) {
-                val cur = Skins.all.indexOfFirst { it.id == prefs.skin }.coerceAtLeast(0)
-                Ui.dialog(this).setTitle("Bubble skin").setSingleChoiceItems(Skins.all.map { it.title }.toTypedArray(), cur) { d, i ->
-                    prefs.skin = Skins.all[i].id; d.dismiss(); refreshBubble(); render()
-                }.setNegativeButton("Cancel", null).show()
-            },
+            Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(prefs.skin).title) { pickSkin() },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = "${prefs.bubbleSizeDp} dp",
                 sub = "Bigger or smaller bubble") {
                 val sizes = listOf(52 to "Small", 72 to "Medium", 92 to "Large", 112 to "Extra large")
@@ -191,5 +186,32 @@ class SettingsActivity : Screen() {
             "• Style: casual for chats, formal for email, and so on.\n\n" +
             "• Everything runs on your phone. No account, no subscription."
         ).setPositiveButton("Got it", null).show()
+    }
+
+    /** All the skins as little bubbles to tap. */
+    private fun pickSkin() {
+        val prefs = Prefs(this)
+        val grid = android.widget.GridLayout(this).apply { columnCount = 4; setPaddingRelative(dp(12), dp(8), dp(12), dp(8)) }
+        lateinit var dialog: android.app.AlertDialog
+        Skins.all.forEach { sk ->
+            val cell = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                setPaddingRelative(dp(4), dp(8), dp(4), dp(8))
+                addView(BubbleView(this@SettingsActivity).apply { skin = sk }, android.widget.LinearLayout.LayoutParams(dp(60), dp(60)))
+                addView(Ui.text(this@SettingsActivity, sk.title, 12f, if (sk.id == prefs.skin) p.accent else p.ink, bold = sk.id == prefs.skin).apply {
+                    gravity = android.view.Gravity.CENTER; maxLines = 1
+                })
+                isClickable = true
+                Ui.ripple(this@SettingsActivity, this)
+                setOnClickListener { prefs.skin = sk.id; dialog.dismiss(); refreshBubble(); render() }
+            }
+            grid.addView(cell, android.widget.GridLayout.LayoutParams().apply {
+                width = 0; columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+            })
+        }
+        dialog = Ui.dialog(this).setTitle("Bubble skin").setView(android.widget.ScrollView(this).apply { addView(grid) })
+            .setNegativeButton("Cancel", null).create()
+        dialog.show()
     }
 }

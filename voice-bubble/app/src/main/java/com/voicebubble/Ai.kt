@@ -70,10 +70,31 @@ object Ai {
             (if (Regex("(?i)\\b(short|long|length|brief|expand)").containsMatchIn(instruction)) "" else lengthNote(c, "rewrite")) +
             limitNote(maxChars))
 
-    fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = ask(c,
-        "You translate text someone dictated by voice. Keep the tone, names and emoji. " +
-            "Reply with only the translation: no quotes, no explanation.",
-        "Translate into $language:\n$text" + limitNote(maxChars))
+    fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = cleanTranslation(ask(c,
+        "You translate text someone dictated by voice; it gets sent as a chat message. Keep the tone, names and emoji. " +
+            "Reply with only the translated message itself: no label or heading (never \"Message in $language:\" or " +
+            "\"Translation:\"), no quotes, no explanation.",
+        "Translate the text between the tags into $language.\n<text>\n$text\n</text>" + limitNote(maxChars)), language)
+
+    /** Removes labels some AIs add anyway ("Message in Hebrew:", "Translation:", "**Hebrew:**", <text> tags). */
+    fun cleanTranslation(out: String, language: String): String {
+        var t = out.replace("<text>", "").replace("</text>", "").replace("**", "").trim()
+        val lang = Regex.escape(language)
+        val label = Regex("(?i)^(?:here(?:'s| is)[^:\n]{0,60}|(?:the )?(?:translated )?(?:translation|message|text)[^:\n]{0,40}|" +
+            "[^:\n]{0,30}\\b$lang\\b[^:\n]{0,20}|$lang|הודעה[^:\n]{0,30}|תרגום[^:\n]{0,30})\\s*[:：]\\s*")
+        repeat(2) {
+            // A label on its own line, or in front of the text.
+            val lines = t.lines()
+            val first = lines[0].trim()
+            if (lines.size > 1 && first.length <= 60 && (first.endsWith(":") ||
+                    Regex("(?i)^(?:here(?:'s| is)\\b.*|(?:the )?(?:translation|translated)\\b.*|.*\\b(?:message|text|translation) (?:in|into) $lang\\b.*|$lang\\.?)$").matches(first)))
+                t = lines.drop(1).joinToString("\n").trim()
+            t = label.replaceFirst(t, "").trim()
+            // "Message in Hebrew שלום" with no colon.
+            t = Regex("(?i)^(?:the )?(?:message|translation|text) (?:in|into) $lang\\b\\s*[-–—]?\\s*").replaceFirst(t, "").trim()
+        }
+        return t.trim().removeSurrounding("\"").removeSurrounding("“", "”").trim()
+    }
 
     /** Three short replies the user could send next in the chat on screen. */
     fun replies(c: Context, chat: String, instruction: String): List<String> {

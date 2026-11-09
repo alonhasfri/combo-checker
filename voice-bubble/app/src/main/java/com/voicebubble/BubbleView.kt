@@ -7,16 +7,19 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.SweepGradient
 import android.view.View
 import kotlin.math.cos
 import kotlin.math.sin
 
 /** Bubble looks. Pick one in Settings → Bubble skin. */
 object Skins {
+    /** [pattern]: something drawn on top ("eye" replaces the microphone, "galaxy" adds stars, "rainbow" colours it). */
     class Skin(val id: String, val title: String, val idle: Int, val idle2: Int? = null, val icon: Int = Color.WHITE,
-               val shape: String = "circle", val glow: Int? = null)
+               val shape: String = "circle", val glow: Int? = null, val pattern: String = "")
 
     val all = listOf(
         Skin("classic", "Classic", Color.rgb(58, 91, 217)),
@@ -24,8 +27,23 @@ object Skins {
         Skin("sunset", "Sunset", Color.rgb(255, 122, 69), idle2 = Color.rgb(232, 62, 140)),
         Skin("mint", "Mint", Color.rgb(25, 179, 138)),
         Skin("heart", "Heart", Color.rgb(230, 20, 40), shape = "heart"),
-        Skin("sixeyes", "Six Eyes", Color.rgb(11, 18, 48), icon = Color.rgb(127, 219, 255), glow = Color.rgb(127, 219, 255)),
+        Skin("gojo", "Six Eyes", Color.rgb(8, 12, 30), glow = Color.rgb(120, 215, 255), pattern = "eye"),
+        // The old "Six Eyes" look (kept under its old id, so it stays picked for you).
+        Skin("sixeyes", "Neon blue", Color.rgb(11, 18, 48), icon = Color.rgb(127, 219, 255), glow = Color.rgb(127, 219, 255)),
         Skin("star", "Star", Color.rgb(255, 210, 63), icon = Color.rgb(60, 40, 0), shape = "star", glow = Color.rgb(255, 240, 160)),
+        Skin("galaxy", "Galaxy", Color.rgb(70, 30, 140), idle2 = Color.rgb(12, 10, 40), glow = Color.rgb(170, 120, 255), pattern = "galaxy"),
+        Skin("rainbow", "Rainbow", Color.rgb(255, 80, 80), pattern = "rainbow"),
+        Skin("lava", "Lava", Color.rgb(255, 140, 0), idle2 = Color.rgb(190, 10, 30), glow = Color.rgb(255, 120, 40)),
+        Skin("ocean", "Ocean", Color.rgb(0, 200, 230), idle2 = Color.rgb(20, 60, 170)),
+        Skin("bubblegum", "Bubblegum", Color.rgb(255, 110, 185), idle2 = Color.rgb(255, 175, 225)),
+        Skin("gold", "Gold", Color.rgb(255, 222, 110), idle2 = Color.rgb(190, 135, 20), icon = Color.rgb(70, 45, 0), glow = Color.rgb(255, 230, 140)),
+        Skin("matrix", "Matrix", Color.rgb(4, 10, 6), icon = Color.rgb(60, 255, 120), glow = Color.rgb(60, 255, 120)),
+        Skin("ghost", "Ghost", Color.rgb(248, 249, 252), icon = Color.rgb(40, 44, 60), glow = Color.WHITE),
+        Skin("void", "Void", Color.rgb(0, 0, 0), idle2 = Color.rgb(60, 20, 110), icon = Color.rgb(200, 170, 255), glow = Color.rgb(150, 90, 255)),
+        Skin("cursed", "Cursed", Color.rgb(25, 0, 4), idle2 = Color.rgb(140, 0, 20), icon = Color.rgb(255, 90, 90), glow = Color.rgb(255, 40, 60)),
+        Skin("soul", "Red soul", Color.rgb(255, 0, 20), shape = "heart", glow = Color.rgb(255, 60, 60)),
+        Skin("diamond", "Diamond", Color.rgb(200, 245, 255), idle2 = Color.rgb(90, 200, 240), icon = Color.rgb(10, 50, 90), shape = "diamond", glow = Color.WHITE),
+        Skin("honey", "Honey", Color.rgb(255, 190, 20), idle2 = Color.rgb(230, 140, 0), icon = Color.rgb(70, 40, 0), shape = "hexagon"),
     )
     fun byId(id: String?) = all.firstOrNull { it.id == id } ?: all[0]
 }
@@ -86,9 +104,82 @@ class BubbleView(context: Context) : View(context) {
                 }
                 path.close()
             }
+            "diamond" -> {
+                val w = r * 1.1f
+                path.moveTo(cx, cy - w); path.lineTo(cx + w * 0.85f, cy); path.lineTo(cx, cy + w); path.lineTo(cx - w * 0.85f, cy)
+                path.close()
+            }
+            "hexagon" -> {
+                for (i in 0 until 6) {
+                    val a = Math.toRadians((-90 + i * 60).toDouble())
+                    val x = cx + (r * 1.05f * cos(a)).toFloat()
+                    val y = cy + (r * 1.05f * sin(a)).toFloat()
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+            }
             else -> path.addCircle(cx, cy, r, Path.Direction.CW)
         }
         return path
+    }
+
+    private val eyePath = Path()
+    private val eyePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val lash = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+
+    /** Six Eyes: a glowing blue eye with white lashes. */
+    private fun drawEye(c: Canvas, cx: Float, cy: Float, r: Float) {
+        val w = r * 0.8f
+        val lid = r * 0.78f
+        eyePath.reset()
+        eyePath.moveTo(cx - w, cy)
+        eyePath.quadTo(cx, cy - lid, cx + w, cy)
+        eyePath.quadTo(cx, cy + lid, cx - w, cy)
+        eyePath.close()
+        // White of the eye.
+        eyePaint.shader = null
+        eyePaint.color = Color.rgb(236, 246, 255)
+        c.drawPath(eyePath, eyePaint)
+        c.save()
+        c.clipPath(eyePath)
+        // Bright blue iris, lighter in the middle.
+        val ir = r * 0.43f
+        eyePaint.shader = RadialGradient(cx, cy, ir,
+            intArrayOf(Color.rgb(235, 255, 255), Color.rgb(110, 225, 255), Color.rgb(20, 140, 240), Color.rgb(5, 60, 170)),
+            floatArrayOf(0f, 0.35f, 0.75f, 1f), Shader.TileMode.CLAMP)
+        c.drawCircle(cx, cy, ir, eyePaint)
+        eyePaint.shader = null
+        // Fine streaks in the iris.
+        lash.color = Color.argb(150, 210, 250, 255)
+        lash.strokeWidth = 0.8f * d
+        for (i in 0 until 16) {
+            val a = Math.toRadians(i * 22.5)
+            c.drawLine(cx + (ir * 0.32f * cos(a)).toFloat(), cy + (ir * 0.32f * sin(a)).toFloat(),
+                cx + (ir * 0.9f * cos(a)).toFloat(), cy + (ir * 0.9f * sin(a)).toFloat(), lash)
+        }
+        eyePaint.color = Color.rgb(8, 30, 80)
+        c.drawCircle(cx, cy, r * 0.12f, eyePaint)
+        eyePaint.color = Color.WHITE
+        c.drawCircle(cx - r * 0.14f, cy - r * 0.14f, r * 0.075f, eyePaint)
+        c.restore()
+        // White lid line and lashes.
+        lash.color = Color.rgb(245, 250, 255)
+        lash.strokeWidth = 2.2f * d
+        eyePath.reset()
+        eyePath.moveTo(cx - w, cy)
+        eyePath.quadTo(cx, cy - lid, cx + w, cy)
+        lash.style = Paint.Style.STROKE
+        c.drawPath(eyePath, lash)
+        lash.strokeWidth = 1.8f * d
+        for (t in floatArrayOf(0.12f, 0.28f, 0.5f, 0.72f, 0.88f)) {
+            val u = 1 - t
+            val x = u * u * (cx - w) + 2 * u * t * cx + t * t * (cx + w)
+            val y = u * u * cy + 2 * u * t * (cy - lid) + t * t * cy
+            val dx = x - cx
+            val dy = y - (cy + r * 0.3f)
+            val len = kotlin.math.sqrt(dx * dx + dy * dy)
+            c.drawLine(x, y, x + dx / len * r * 0.2f, y + dy / len * r * 0.2f, lash)
+        }
     }
 
     override fun onDraw(c: Canvas) {
@@ -101,6 +192,8 @@ class BubbleView(context: Context) : View(context) {
             State.IDLE -> {
                 fill.color = skin.idle
                 skin.idle2?.let { fill.shader = LinearGradient(cx - r, cy - r, cx + r, cy + r, skin.idle, it, Shader.TileMode.CLAMP) }
+                if (skin.pattern == "rainbow") fill.shader = SweepGradient(cx, cy, intArrayOf(Color.rgb(255, 70, 70),
+                    Color.rgb(255, 190, 40), Color.rgb(80, 220, 90), Color.rgb(40, 170, 255), Color.rgb(170, 90, 255), Color.rgb(255, 70, 70)), null)
             }
             State.RECORDING -> fill.color = if (skin.shape == "heart") Color.rgb(255, 40, 60) else Color.rgb(222, 48, 56)
             State.WORKING -> fill.color = Color.rgb(106, 63, 217)
@@ -123,6 +216,14 @@ class BubbleView(context: Context) : View(context) {
             }
         }
         c.drawPath(shape, fill)
+        if (state == State.IDLE && skin.pattern == "galaxy") {
+            // A few stars.
+            for ((fx, fy, fs) in listOf(Triple(-0.5f, -0.35f, 1.4f), Triple(0.45f, -0.5f, 1f), Triple(0.55f, 0.3f, 1.6f),
+                    Triple(-0.3f, 0.55f, 1f), Triple(0.1f, -0.7f, 0.8f), Triple(-0.65f, 0.15f, 0.9f), Triple(0.25f, 0.62f, 0.8f))) {
+                iconFill.color = Color.argb(220, 255, 255, 255)
+                c.drawCircle(cx + fx * r, cy + fy * r, fs * d, iconFill)
+            }
+        }
         if (moving) {
             ring.color = Color.WHITE
             ring.strokeWidth = 2.5f * d
@@ -182,6 +283,8 @@ class BubbleView(context: Context) : View(context) {
             postInvalidateOnAnimation()
             return
         }
+
+        if (skin.pattern == "eye") { drawEye(c, cx, cy, r); return }
 
         // Microphone icon.
         icon.strokeWidth = 2.4f * s
