@@ -58,8 +58,8 @@ object Words {
     }
 
     fun apply(c: Context, text: String, capitalize: Boolean = true): String =
-        applyShortcuts(Adapt.applyFixes(c, applyDictionary(text, dictionary(c), shortcuts(c), strict = Packs.names(c)), capitalize),
-            shortcuts(c), capitalize)
+        applyShortcuts(Adapt.applyFixes(c, applyDictionary(Packs.fix(Packs.enabled(c), text), dictionary(c), shortcuts(c),
+            strict = Packs.names(c)), capitalize), shortcuts(c), capitalize)
 
     private class Tok(val start: Int, val end: Int, val text: String) { val n = norm(text) }
 
@@ -73,11 +73,22 @@ object Words {
     }
 
     /** Rough "sounds the same" form for comparing spellings. */
+    private val chrRe = Regex("^ch(?=[rl])")
+    private val softCRe = Regex("c(?=[eiy])")
+    private val possRe = Regex("(?i)['’]s$")
+
+    /** Short everyday words: a name split into only these ("to do" → "Todo") is never a name. */
+    private val common = setOf("to", "do", "go", "so", "no", "me", "he", "we", "it", "is", "in", "on", "at", "as",
+        "an", "or", "of", "up", "my", "by", "be", "the", "and", "you", "for", "are", "was", "not", "but", "can", "all",
+        "get", "got", "see", "say", "one", "two", "how", "who", "why", "too", "off", "out", "now", "new", "may", "let",
+        "did", "has", "had", "her", "him", "his", "its", "our", "she", "they", "them", "this", "that", "what", "with",
+        "your", "a", "i", "if", "us", "am", "oh", "ok", "hi", "yes", "way", "day", "man", "ten", "time")
+
     fun sound(s: String): String {
         var t = norm(s).replace("ph", "f").replace("ck", "k").replace("kh", "h")
-            .replace(Regex("^ch(?=[rl])"), "k")      // "Chris" sounds like "Kris"
+            .replace(chrRe, "k")                     // "Chris" sounds like "Kris"
             .replace("ch", "\u0001")                 // keep "ch" as its own sound
-            .replace(Regex("c(?=[eiy])"), "s")       // "ce", "ci" sound like s
+            .replace(softCRe, "s")                   // "ce", "ci" sound like s
             .replace('c', 'k').replace("\u0001", "ch") // other c sounds like k
             .replace('z', 's')
         val sb = StringBuilder()
@@ -139,10 +150,16 @@ object Words {
             .filter { it.second > 0 }
             .sortedWith(compareByDescending<Triple<String, Int, Boolean>> { it.second }.thenByDescending { it.first.length })
 
+        // Each run of words is turned into its "sound" once, not once per entry (this used to be slow).
+        val soundCache = HashMap<Long, String>()
+        fun windowSound(i: Int, k: Int, poss: String): String = soundCache.getOrPut(i.toLong() * 64 + k) {
+            sound(toks.subList(i, i + k).joinToString("") { it.text }.dropLast(poss.length))
+        }
+
         for ((entry, size, isStrict) in entries) {
             val key = sound(entry)
             if (key.length < 2) continue
-            // Same number of words, or split/joined differently by Whisper ("Go Joe" for "Gojo").
+            // Same number of words, or split/joined differently ("Go Joe" for "Gojo").
             // Either way it may be slightly misspelled (short words must match exactly).
             val sizes = linkedSetOf(size, size + 1, size + 2, size - 1).filter { it >= 1 }
             for (k in sizes) {
@@ -151,14 +168,17 @@ object Words {
                     if ((i until i + k).any { used[it] }) { i++; continue }
                     val window = toks.subList(i, i + k)
                     // "Gojo's" counts as "Gojo" (the 's is kept).
-                    val lastText = window.last().text
-                    val poss = Regex("(?i)['’]s$").find(lastText)?.value ?: ""
-                    val joined = window.joinToString("") { it.text }.dropLast(poss.length)
-                    val cand = sound(joined)
-                    val a = if (isStrict) strictAllowed(maxOf(cand.length, key.length)) else allowed(maxOf(cand.length, key.length))
-                    // Split differently: every piece must be a real chunk, not a stray letter.
-                    val piecesOk = k == size || window.all { it.n.length >= 2 }
-                    val ok = piecesOk && cand.length >= 3 && abs(cand.length - key.length) <= a &&
+                    val poss = possRe.find(window.last().text)?.value ?: ""
+                    val split = k != size
+                    // Split differently: every piece must be a real chunk, not a stray letter,
+                    // and not just everyday words ("to do" is not "Todo").
+                    val piecesOk = !split || (window.all { it.n.length >= 2 } && !window.all { it.n in common })
+                    if (!piecesOk) { i++; continue }
+                    val cand = windowSound(i, k, poss)
+                    val len = maxOf(cand.length, key.length)
+                    // A pack name split into pieces may be a letter off too ("go Joe" → "Gojo").
+                    val a = if (isStrict) maxOf(strictAllowed(len), if (split && len >= 4) 1 else 0) else allowed(len)
+                    val ok = cand.length >= 3 && abs(cand.length - key.length) <= a &&
                         (cand == key || (cand[0] == key[0] && lev(cand, key) <= a))
                     if (ok) {
                         val s = window.first().start

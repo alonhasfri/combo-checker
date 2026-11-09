@@ -11,9 +11,28 @@ import android.content.Context
  *   used to change other words, so "mowing" never turns into "mewing".
  */
 object Packs {
+    /**
+     * [fixes]: how speech engines often mishear a word ("the lulu" → "delulu"). Swapped exactly,
+     * only while the pack is on.
+     */
     class Pack(val id: String, val title: String, val sub: String, val icon: Int, val tone: String,
-               val names: List<String>, val hints: List<String>) {
+               val names: List<String>, val hints: List<String>, val fixes: Map<String, String> = emptyMap()) {
         val size get() = names.size + hints.size
+        val fixRules by lazy {
+            fixes.entries.sortedByDescending { it.key.length }.map { (from, to) ->
+                Regex("(?<![\\p{L}'’])" + from.split(" ").joinToString("[\\s-]+") { Regex.escape(it) } + "(?![\\p{L}'’])",
+                    RegexOption.IGNORE_CASE) to to
+            }
+        }
+    }
+
+    /** Applies the switched-on packs' known mishearings. */
+    fun fix(packs: List<Pack>, text: String): String {
+        var t = text
+        for (p in packs) for ((re, to) in p.fixRules) t = re.replace(t) { m ->
+            if (m.value[0].isUpperCase()) to.replaceFirstChar { it.uppercaseChar() } else to
+        }
+        return t
     }
 
     val jjk = Pack(
@@ -36,6 +55,16 @@ object Packs {
             "Simple Domain", "Binding Vow", "Heavenly Restriction", "Boogie Woogie", "Cleave", "Dismantle",
             "Divine Dogs", "Nue", "Idle Transfiguration", "Nah I'd win", "Stand proud", "throughout heaven and earth",
         ),
+        fixes = mapOf(
+            "go joe" to "Gojo", "go jo" to "Gojo", "sakuna" to "Sukuna", "sukona" to "Sukuna",
+            "sue kuna" to "Sukuna", "su kuna" to "Sukuna", "sukoona" to "Sukuna", "ita dori" to "Itadori",
+            "itta dori" to "Itadori", "megumi" to "Megumi", "nobara" to "Nobara", "nana me" to "Nanami",
+            "mahoraga" to "Mahoraga", "maho raga" to "Mahoraga", "ma hito" to "Mahito", "kenjaku" to "Kenjaku",
+            "ken jaku" to "Kenjaku", "hakari" to "Hakari", "hack ari" to "Hakari",
+            "jiu jitsu kaisen" to "Jujutsu Kaisen", "jujitsu kaisen" to "Jujutsu Kaisen", "ju jitsu kaisen" to "Jujutsu Kaisen",
+            "ryomen" to "Ryomen", "geto" to "Geto", "getto" to "Geto", "okotsu" to "Okkotsu",
+            "domain expansions" to "Domain Expansions", "black flash" to "Black Flash", "toji" to "Toji", "toe ji" to "Toji",
+        ),
     )
 
     val toby = Pack(
@@ -56,6 +85,19 @@ object Packs {
             "King", "Queen", "Seam", "Clover", "Titan", "Mike", "Weird Route", "Freezing Ring", "Thorn Ring",
             "Hammer of Justice", "Knight",
         ),
+        fixes = mapOf(
+            "delta rune" to "Deltarune", "deltarun" to "Deltarune", "delta run" to "Deltarune", "under tale" to "Undertale",
+            "undertail" to "Undertale", "under tail" to "Undertale", "rules card" to "Rouxls Kaard", "rule's card" to "Rouxls Kaard",
+            "rools card" to "Rouxls Kaard", "roux card" to "Rouxls Kaard", "rouxls card" to "Rouxls Kaard",
+            "spam ton" to "Spamton", "spamtin" to "Spamton", "ralsay" to "Ralsei", "ralsy" to "Ralsei", "ralsie" to "Ralsei",
+            "ral say" to "Ralsei", "undine" to "Undyne", "alfis" to "Alphys", "alphis" to "Alphys",
+            "flowy" to "Flowey", "flowie" to "Flowey", "tori el" to "Toriel", "tory el" to "Toriel", "toriel" to "Toriel",
+            "as gore" to "Asgore", "azgore" to "Asgore", "azriel" to "Asriel", "mega lovania" to "Megalovania",
+            "megalovania" to "Megalovania", "megalo vania" to "Megalovania", "meta ton" to "Mettaton", "metaton" to "Mettaton",
+            "metta ton" to "Mettaton", "jeville" to "Jevil", "jay vil" to "Jevil", "jevel" to "Jevil", "napsta blook" to "Napstablook",
+            "temmy" to "Temmie", "berdley" to "Berdly", "bird lee" to "Berdly", "susie" to "Susie",
+            "pippis" to "Pipis", "snow grave" to "Snowgrave",
+        ),
     )
 
     val genz = Pack(
@@ -68,6 +110,19 @@ object Packs {
             "understood the assignment", "touch grass", "goated", "ick", "bruh", "sheesh", "oomf", "iykyk",
             "stan", "simp", "red flag", "green flag", "beige flag", "brainrot", "aura points", "mogging",
             "looksmaxxing", "crash out", "opp", "pookie", "demure", "unc", "chopped", "tweaking", "huzz", "six seven",
+        ),
+        fixes = mapOf(
+            "riz" to "rizz", "ris" to "rizz", "rizler" to "rizzler", "rizzlers" to "rizzlers", "risler" to "rizzler",
+            "the lulu" to "delulu", "de lulu" to "delulu", "delu lu" to "delulu", "dalulu" to "delulu", "delulo" to "delulu",
+            "gyat" to "gyatt", "gyad" to "gyatt", "guiat" to "gyatt", "skibbidy" to "skibidi", "skibbidi" to "skibidi",
+            "skibidy" to "skibidi", "skibbity" to "skibidi", "skibity" to "skibidi", "skibidee" to "skibidi",
+            "phantom tax" to "Fanum tax", "fanem tax" to "Fanum tax", "fan um tax" to "Fanum tax", "fanum tax" to "Fanum tax",
+            "bussing" to "bussin", "busin" to "bussin", "no capp" to "no cap", "unk" to "unc",
+            "huz" to "huzz", "i j b o l" to "IJBOL", "ijbol" to "IJBOL", "periodt" to "periodt", "period t" to "periodt",
+            "sigma's" to "sigmas", "mewing" to "mewing", "looks maxing" to "looksmaxxing", "looksmaxing" to "looksmaxxing",
+            "looks maxxing" to "looksmaxxing", "goated" to "goated", "goaded" to "goated", "brain rot" to "brainrot",
+            "situation ship" to "situationship", "pookey" to "pookie", "pooky" to "pookie", "glazin" to "glazing",
+            "yappin" to "yapping", "crashing out" to "crashing out", "aura points" to "aura points",
         ),
     )
 

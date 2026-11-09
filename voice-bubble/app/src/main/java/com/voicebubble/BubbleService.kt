@@ -762,7 +762,13 @@ class BubbleService : Service() {
     // ----- live text next to the bubble -----
 
     /** Live engine: put the words so far straight into the text box (autotype), or in the live box. */
-    private fun typeLive(s: Session, text: String) {
+    private fun typeLive(s: Session, raw: String) {
+        // Emoji, your dictionary and word packs right away, not only when you stop.
+        val text = runCatching {
+            var t = raw
+            if (Features.isOn(this, Commands.Feature.EMOJI)) t = TextTools.emoji(t)
+            Words.apply(this, t, capitalize = s.style != Styles.Style.VERY_CASUAL && s.style != Styles.Style.GEN_Z)
+        }.getOrDefault(raw)
         val svc = InsertService.instance
         if (!prefs.typeWhileTalking || svc == null) { showLiveText(text); return }
         if (text.isBlank()) return

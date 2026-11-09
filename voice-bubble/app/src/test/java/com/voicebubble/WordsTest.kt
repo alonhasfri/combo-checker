@@ -87,3 +87,21 @@ class PacksTest {
         assertEquals(1500, audioCtxFor(16000 * 40))
     }
 }
+
+class PackFixesTest {
+    @Test fun knownMishearings() {
+        assertEquals("That's so delulu, no rizz", Packs.fix(listOf(Packs.genz), "That's so the lulu, no riz"))
+        assertEquals("Rouxls Kaard and Spamton", Packs.fix(listOf(Packs.toby), "rules card and spam ton"))
+        assertEquals("Gojo would win", Packs.fix(listOf(Packs.jjk), "go Joe would win"))
+        // Only the packs that are on.
+        assertEquals("no riz", Packs.fix(listOf(Packs.jjk), "no riz"))
+    }
+
+    @Test fun splitNames() {
+        val strict = Packs.jjk.names + Packs.toby.names
+        fun d(s: String) = Words.applyDictionary(s, emptyList(), emptyList(), strict)
+        assertEquals("I like Asgore", d("I like as gore"))
+        // Everyday words are never joined into a name.
+        assertEquals("I have a lot to do.", d("I have a lot to do."))
+    }
+}
