@@ -28,6 +28,14 @@ class ModelActivity : Screen() {
                 "If you speak English, pick an English model: they're more accurate and never mistake your language.")
             .apply { setPaddingRelative(dp(4), dp(14), dp(4), 0) })
 
+        // Slower phone: Whisper waits until you stop, so point to the Live engine.
+        if (!Cpu.hasI8mm()) page.addView(Ui.paddedCard(this).apply {
+            addView(Ui.text(this@ModelActivity, "Fastest on your phone: Live · English", 16f, p.ink))
+            addView(Ui.note(this@ModelActivity, "Your phone doesn't have the newest fast-maths chip, so Whisper models need a few " +
+                    "seconds after you stop. The Live engine (below) writes while you talk, so your text is ready the moment " +
+                    "you stop. Use Whisper for other languages or translating.").apply { setPaddingRelative(0, dp(6), 0, 0) })
+        }, Ui.lp(this, 16))
+
         page.addView(Ui.sectionTitle(this, "Whisper (all languages, translation)"))
         Models.shown().forEach { m ->
             val chosen = prefs.engine == "whisper" && prefs.modelId == m.id
@@ -104,7 +112,11 @@ class ModelActivity : Screen() {
                 orientation = LinearLayout.VERTICAL
                 setPaddingRelative(dp(12), 0, dp(8), 0)
                 addView(Ui.text(this@ModelActivity, lm.title, 16f, p.ink))
-                addView(Ui.text(this@ModelActivity, lm.detail, 13f, p.muted, bold = false))
+                addView(Ui.text(this@ModelActivity, lm.detail + when {
+                    Cpu.hasI8mm() -> ""
+                    lm.id == "kroko" -> " · best for your phone"
+                    else -> " · too heavy for your phone"
+                }, 13f, p.muted, bold = false))
             }, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             head.addView(RadioButton(this).apply { isChecked = chosen; isClickable = false })
             card.addView(head)

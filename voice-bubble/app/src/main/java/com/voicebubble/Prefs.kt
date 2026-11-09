@@ -169,7 +169,8 @@ class Prefs(private val ctx: Context) {
         set(v) = p.edit().putBoolean("typeLive", v).apply()
     /** Live engine: type the draft live, then swap in Whisper's more accurate text at the end. */
     var liveFinalWhisper: Boolean
-        get() = p.getBoolean("liveFinalWhisper", true)
+        // On phones without the fast-maths chip Whisper is slow, so Live's own text is used as it is.
+        get() = p.getBoolean("liveFinalWhisper", Cpu.hasI8mm())
         set(v) = p.edit().putBoolean("liveFinalWhisper", v).apply()
     /** What happened the last time the Live engine was started ("ok" or the problem), for the model screen. */
     var liveStatus: String
