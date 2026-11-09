@@ -60,6 +60,12 @@ foreach(VARIANT base fast)
             -DGGML_NATIVE=OFF
             -DGGML_CPU_ARM_ARCH=${ARCH}
         BUILD_BYPRODUCTS ${LIBS})
+    # Both builds share one source folder, and configuring writes files there: configure one at a time.
+    if (VARIANT STREQUAL "base")
+        ExternalProject_Add_StepTargets(whisper_base configure)
+    else()
+        ExternalProject_Add_StepDependencies(whisper_${VARIANT} configure whisper_base-configure)
+    endif()
 
     add_library(voicebubble_${VARIANT} SHARED whisper_jni.cpp)
     add_dependencies(voicebubble_${VARIANT} whisper_${VARIANT})
