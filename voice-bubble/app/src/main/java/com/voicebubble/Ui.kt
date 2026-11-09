@@ -114,7 +114,7 @@ object Ui {
 
     /** A card with inner padding, for free content (text, fields, buttons). */
     fun paddedCard(ctx: Context): LinearLayout = card(ctx).apply {
-        setPaddingRelative(dp(ctx, 16), dp(ctx, 14), dp(ctx, 16), dp(ctx, 16))
+        setPaddingRelative(dp(ctx, 18), dp(ctx, 18), dp(ctx, 18), dp(ctx, 18))
     }
 
     fun ripple(ctx: Context, v: View) {
@@ -124,7 +124,7 @@ object Ui {
 
     fun page(ctx: Context) = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        setPaddingRelative(dp(ctx, 20), dp(ctx, 18), dp(ctx, 20), dp(ctx, 28))
+        setPaddingRelative(dp(ctx, 20), dp(ctx, 20), dp(ctx, 20), dp(ctx, 40))
     }
 
     fun tile(ctx: Context, res: Int, toneName: String, boxDp: Int = 34, iconDp: Int = 19): FrameLayout {
@@ -138,11 +138,11 @@ object Ui {
 
     fun sectionTitle(ctx: Context, s: String) = text(ctx, s.uppercase(), 13f, pal(ctx).muted).apply {
         letterSpacing = 0.04f
-        setPaddingRelative(dp(ctx, 4), dp(ctx, 22), dp(ctx, 4), dp(ctx, 8))
+        setPaddingRelative(dp(ctx, 6), dp(ctx, 32), dp(ctx, 6), dp(ctx, 10))
     }
 
     fun note(ctx: Context, s: String) = text(ctx, s, 13f, pal(ctx).muted, bold = false).apply {
-        setLineSpacing(0f, 1.15f)
+        setLineSpacing(0f, 1.3f)
     }
 
     /** A settings-style row: icon tile, label (+ optional second line), optional value, optional chevron. */
@@ -154,14 +154,14 @@ object Ui {
         val p = pal(ctx)
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(ctx, 58)
-            setPaddingRelative(dp(ctx, 14), dp(ctx, 9), dp(ctx, 14), dp(ctx, 9))
+            minimumHeight = dp(ctx, 66)
+            setPaddingRelative(dp(ctx, 16), dp(ctx, 14), dp(ctx, 16), dp(ctx, 14))
             addView(tile(ctx, res, if (danger) "red" else toneName))
             val col = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPaddingRelative(dp(ctx, 12), 0, dp(ctx, 8), 0)
+                setPaddingRelative(dp(ctx, 14), 0, dp(ctx, 10), 0)
                 addView(text(ctx, label, 15f, if (danger) p.danger else p.ink))
-                if (!sub.isNullOrEmpty()) addView(text(ctx, sub, 13f, p.muted, bold = false))
+                if (!sub.isNullOrEmpty()) addView(subLine(ctx, sub))
             }
             addView(col, LinearLayout.LayoutParams(0, WRAP, 1f))
             if (!value.isNullOrEmpty()) addView(text(ctx, value, 14f, valueColor ?: p.muted).apply {
@@ -192,14 +192,14 @@ object Ui {
         }
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(ctx, 58)
-            setPaddingRelative(dp(ctx, 14), dp(ctx, 9), dp(ctx, 14), dp(ctx, 9))
+            minimumHeight = dp(ctx, 66)
+            setPaddingRelative(dp(ctx, 16), dp(ctx, 14), dp(ctx, 16), dp(ctx, 14))
             addView(tile(ctx, res, toneName))
             val col = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPaddingRelative(dp(ctx, 12), 0, dp(ctx, 8), 0)
+                setPaddingRelative(dp(ctx, 14), 0, dp(ctx, 10), 0)
                 addView(text(ctx, label, 15f, p.ink))
-                if (!sub.isNullOrEmpty()) addView(text(ctx, sub, 13f, p.muted, bold = false))
+                if (!sub.isNullOrEmpty()) addView(subLine(ctx, sub))
             }
             addView(col, LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(sw)
@@ -207,7 +207,12 @@ object Ui {
         }
     }
 
-    fun divider(ctx: Context, indentDp: Int = 60) = View(ctx).apply {
+    /** The grey second line under a row's label, with a little air above it. */
+    private fun subLine(ctx: Context, s: String) = text(ctx, s, 13f, pal(ctx).muted, bold = false).apply {
+        setPaddingRelative(0, dp(ctx, 3), 0, 0); setLineSpacing(0f, 1.2f)
+    }
+
+    fun divider(ctx: Context, indentDp: Int = 64) = View(ctx).apply {
         setBackgroundColor(pal(ctx).divider)
         layoutParams = LinearLayout.LayoutParams(MATCH, dp(ctx, 1)).apply { marginStart = dp(ctx, indentDp) }
     }

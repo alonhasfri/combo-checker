@@ -79,17 +79,21 @@ class StylesActivity : Screen() {
         }
         // Your own choice for particular apps (beats the category above).
         page.addView(Ui.sectionTitle(this, "Specific apps"))
+        page.addView(Ui.note(this, "Give an app its own style, language or length limit (the longest message it sends). " +
+                "It beats the settings above.").apply { setPaddingRelative(dp(6), 0, dp(6), dp(12)) })
         val styles = Styles.appStyles(this)
         val langs = Styles.appLangs(this)
         val limits = Styles.appLimits(this)
-        val rows = (styles.keys + langs.keys + limits.keys).distinct().map { pkg ->
+        // Roblox is listed when it's on your phone, since it gets 200 characters by itself.
+        val roblox = listOfNotNull(Limit.ROBLOX.takeIf { installed(it) })
+        val rows = (styles.keys + langs.keys + limits.keys + roblox).distinct().map { pkg ->
             val parts = listOfNotNull(styles[pkg]?.title?.trimEnd('.', '!'),
-                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code },
-                limits[pkg]?.let { if (it > 0) "$it chars" else "no limit" })
-            Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = parts.joinToString(" · ")) { appOptions(pkg) }
+                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code })
+            Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = parts.joinToString(" · ").ifEmpty { null },
+                sub = "Length limit: " + limitLabel(pkg)) { appOptions(pkg) }
         }.toMutableList<android.view.View>()
         rows += Ui.row(this, R.drawable.ui_plus, "blue", "Add an app",
-            sub = "Its own style, language or length limit, e.g. Discord → gen z, Roblox → 200 characters") { pickApp() }
+            sub = "e.g. Discord → gen z, Roblox → 200 characters") { pickApp() }
         page.addView(Ui.group(this, rows))
 
         page.addView(Ui.note(this, "Styles are made for English. In other languages only the caps and punctuation change.")
@@ -114,8 +118,26 @@ class StylesActivity : Screen() {
         }.setNegativeButton("Cancel", null).show()
     }
 
+    private fun installed(pkg: String) = runCatching { packageManager.getApplicationInfo(pkg, 0) }.isSuccess
+
+    /** "200 characters (automatic)", "150 characters", "none"… */
+    private fun limitLabel(pkg: String): String {
+        val own = Styles.appLimits(this)[pkg]
+        val all = Prefs(this).maxChars
+        return when {
+            own != null && own > 0 -> "$own characters"
+            own != null -> "none"
+            pkg == Limit.ROBLOX -> "${Limit.ROBLOX_CHARS} characters (automatic)"
+            all > 0 -> "$all characters (same as all apps)"
+            else -> "none"
+        }
+    }
+
     private fun appOptions(pkg: String) {
-        Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style", "Language", "Length limit", "Remove (use the defaults)")) { _, i ->
+        val style = Styles.appStyles(this)[pkg]?.title?.trimEnd('.', '!') ?: "same as its category"
+        val lang = Styles.appLangs(this)[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code } ?: "same as everywhere"
+        Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style: $style", "Language: $lang",
+            "Length limit: ${limitLabel(pkg)}", "Remove (use the defaults)")) { _, i ->
             when (i) {
                 0 -> pickStyle(pkg)
                 1 -> pickLang(pkg)

@@ -212,9 +212,9 @@ class MainActivity : Screen() {
             "EVERYTHING IN CAPITALS. Also the ABC button next to the bubble while you speak", prefs.capsLock) { on ->
             prefs.capsLock = on; refreshBubble()
         }
-        rows += Ui.row(this, R.drawable.ui_file, "orange", "Length limit",
-            value = if (prefs.maxChars > 0) "${prefs.maxChars} characters" else "Off",
-            sub = "Longest message. Roblox gets 200 automatically") { pickLimit(this) { render() } }
+        rows += Ui.row(this, R.drawable.ui_file, "orange", "Length limit (all apps)",
+            value = if (prefs.maxChars > 0) "${prefs.maxChars}" else "Off",
+            sub = "Roblox gets 200 by itself. For one app: Styles → Specific apps") { pickLimit(this) { render() } }
         rows += Ui.row(this, R.drawable.ui_wand, "purple", "AI text length", value = Ai.lengthName(prefs.aiLength),
             sub = "Talk like, rewrite, reply and summary. Or say \"${prefs.commandWord}, short\" / \"medium\" / \"long\"") {
             val names = Ai.lengths.map { it.second }.toTypedArray()
