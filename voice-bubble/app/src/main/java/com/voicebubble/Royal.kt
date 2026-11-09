@@ -1,8 +1,8 @@
 package com.voicebubble
 
 /**
- * Royal English: you talk like a sophisticated English royal of the 1500s, speaking down to peasants
- * (the royal "We", thou/thee/thy, "Hark, peasant!"). [apply] is the instant version, on the phone with
+ * Royal English: you talk like a sophisticated English royal of the 1500s
+ * (the royal "We", thou/thee/thy, "Verily…"). [apply] is the instant version, on the phone with
  * no AI; [AI] is what the AI is told to do.
  */
 object Royal {
@@ -10,11 +10,12 @@ object Royal {
     const val NAME = "a 1500s royal"
 
     /** The instruction for the AI version. (No length words in it: those come from the length setting.) */
-    const val AI = "Make me sound like a sophisticated English royal of the 1500s speaking down to peasants. " +
+    const val AI = "Make me sound like a sophisticated English royal of the 1500s. " +
         "Use elevated, ornate Early Modern English, not quotes or lines from plays: the royal 'We', 'Us' and 'Our' " +
         "for myself; 'thou', 'thee' and 'thy' for the listener; words such as hark, pray, prithee, forsooth, " +
-        "verily, mayhap, wherefore, henceforth, it pleaseth Us, We decree, lowly subject and peasant. " +
-        "Grand, haughty and gracious. Keep what I meant and keep any names."
+        "verily, mayhap, wherefore, henceforth and it pleaseth Us. Grand, refined and gracious. " +
+        "Don't call anyone a peasant or a subject, or talk down to them: speak to them as you would to anyone. " +
+        "Keep what I meant and keep any names."
 
     // Order matters: longer phrases first, "I"/"me"/"my" last.
     private val swaps: List<Pair<String, String>> = listOf(
@@ -23,7 +24,7 @@ object Royal {
         "I've" to "We have", "I'll" to "We shall", "I will" to "We shall", "I'd" to "We would",
         "I want" to "We desire", "I need" to "We require", "I think" to "We deem",
         "give me" to "bring unto Us", "tell me" to "inform Us", "let me know" to "inform Us", "let me" to "permit Us to",
-        "my house" to "Our castle", "your house" to "thy humble hovel", "my friend" to "Our loyal subject",
+        "my house" to "Our castle", "your house" to "thy dwelling", "my friend" to "Our dear friend",
         // To the listener.
         "are you" to "art thou", "you are" to "thou art", "you're" to "thou art", "you were" to "thou wert",
         "do you" to "dost thou", "did you" to "didst thou", "have you" to "hast thou", "you have" to "thou hast",
@@ -32,7 +33,7 @@ object Royal {
         "can't" to "cannot", "won't" to "shall not", "isn't" to "is not", "aren't" to "art not",
         "thank you" to "We thank thee", "thanks" to "We thank thee", "goodbye" to "fare thee well",
         "good morning" to "good morrow", "right now" to "at once", "of course" to "naturally, as We decree",
-        "shut up" to "silence, peasant", "come here" to "approach Us", "go away" to "begone",
+        "shut up" to "hold thy tongue", "come here" to "approach Us", "go away" to "begone",
         "your" to "thy", "yours" to "thine", "yourself" to "thyself", "you" to "thee",
         "does" to "doth", "has" to "hath", "yes" to "aye", "yeah" to "aye", "hello" to "good morrow",
         "hi" to "good morrow", "hey" to "hark", "bye" to "fare thee well", "please" to "pray",
@@ -40,9 +41,9 @@ object Royal {
         "very" to "most", "before" to "ere", "often" to "oft", "why" to "wherefore", "nothing" to "naught",
         "anything" to "aught", "okay" to "very well", "ok" to "very well", "lol" to "how droll", "lmao" to "how droll",
         "want" to "desire", "wants" to "desires", "need" to "require", "needs" to "requires", "think" to "deem",
-        "help" to "aid", "buy" to "purchase", "hate" to "abhor", "kid" to "urchin", "kids" to "urchins",
-        "everyone" to "all ye subjects", "everybody" to "all ye subjects", "guys" to "peasants",
-        "guy" to "peasant", "dude" to "peasant", "bro" to "peasant", "man" to "peasant", "boss" to "liege",
+        "help" to "aid", "buy" to "purchase", "hate" to "abhor", "kid" to "young one", "kids" to "young ones",
+        "everyone" to "all assembled", "everybody" to "all assembled", "guys" to "good people",
+        "guy" to "good sir", "dude" to "good sir", "bro" to "good sir", "boss" to "liege",
         "friend" to "companion", "friends" to "companions", "girl" to "maiden", "girls" to "maidens",
         "mom" to "Our royal mother", "dad" to "Our royal father", "food" to "victuals", "money" to "gold",
         "car" to "carriage", "phone" to "talking-glass", "cool" to "most splendid", "awesome" to "most splendid",
@@ -53,7 +54,7 @@ object Royal {
     private val rules = swaps.map { (from, to) ->
         Regex("(?<![\\p{L}'])" + from.split(" ").joinToString("\\s+") { Regex.escape(it) } + "(?![\\p{L}'])", RegexOption.IGNORE_CASE) to to
     }
-    private val opener = Regex("^(?i)(hark|pray|nay|aye|good morrow|fare thee well|we thank thee|hear ye|forsooth|verily|silence|begone|approach)\\b")
+    private val opener = Regex("^(?i)(hark|pray|nay|aye|good morrow|fare thee well|we thank thee|hear ye|forsooth|verily|hold thy tongue|begone|approach)\\b")
 
     fun apply(text: String): String {
         var t = text.trim()
@@ -68,12 +69,12 @@ object Royal {
         t = Regex("(^|[.!?]\\s+)[Nn]o\\b(?=[,.!?]|\\s*$)").replace(t) { it.groupValues[1] + "Nay" }
         // "you" as the one doing something is "thou": at the start of a sentence, "thee" becomes "thou".
         t = Regex("(^|[.!?]\\s+)Thee\\b").replace(t) { it.groupValues[1] + "Thou" }
-        // Address the peasant first (not when it already starts royally).
+        // A royal opening (not when it already starts royally).
         if (!opener.containsMatchIn(t)) {
             val end = t.indexOfFirst { it in ".!?" }
             t = if (end >= 0 && t[end] == '?') {
-                "Pray tell, peasant, " + if (Regex("^(We|Us|Our|Ours)\\b").containsMatchIn(t)) t else t.replaceFirstChar { it.lowercaseChar() }
-            } else "Hark, peasant! " + t.replaceFirstChar { it.uppercaseChar() }
+                "Pray tell, " + if (Regex("^(We|Us|Our|Ours)\\b").containsMatchIn(t)) t else t.replaceFirstChar { it.lowercaseChar() }
+            } else "Verily, " + if (Regex("^(We|Us|Our|Ours|I)\\b").containsMatchIn(t)) t else t.replaceFirstChar { it.lowercaseChar() }
         }
         return t
     }

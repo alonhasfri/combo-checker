@@ -137,11 +137,11 @@ class DictionaryFixesTest {
 
 class RoyalTest {
     @Test fun instant() {
-        assertEquals("Pray tell, peasant, art thou coming to the party? We deem 'tis most fun.",
+        assertEquals("Pray tell, art thou coming to the party? We deem 'tis most fun.",
             Royal.apply("Are you coming to the party? I think it is very fun."))
         assertEquals("Good morrow, We thank thee for thy aid.", Royal.apply("Hello, thank you for your help."))
         assertEquals("Nay, We have no gold.", Royal.apply("No, I have no money."))
-        assertEquals("Hark, peasant! We require victuals at once.", Royal.apply("I need food right now."))
+        assertEquals("Verily, We require victuals at once.", Royal.apply("I need food right now."))
     }
 
     @Test fun turningCharacterModeOff() {
