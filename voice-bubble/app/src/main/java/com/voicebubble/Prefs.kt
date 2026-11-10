@@ -17,6 +17,9 @@ data class Model(
 
 object Models {
     val all = listOf(
+        Model("large-turbo", "Most accurate (large)",
+            "Whisper large-v3 turbo · 574 MB · far fewer mistakes than the others, all languages · fast phones",
+            "ggml-large-v3-turbo-q5_0.bin", 574_041_195L, fastOnly = true),
         Model("small.en-fast", "Fastest accurate · English (for your phone)",
             "Whisper small, English only · 264 MB · uses your phone's fast maths instructions",
             "ggml-small.en-q8_0.bin", 264_477_561L, englishOnly = true, fastOnly = true),
@@ -144,6 +147,10 @@ class Prefs(private val ctx: Context) {
     var aiLength: String
         get() = p.getString("aiLength", "")!!
         set(v) = p.edit().putString("aiLength", v).apply()
+    /** After you talk, the AI fixes misheard words from the context (needs an AI key). */
+    var aiFix: Boolean
+        get() = p.getBoolean("aiFix", false)
+        set(v) = p.edit().putBoolean("aiFix", v).apply()
     /** With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5. */
     var aiFast: Boolean
         get() = p.getBoolean("aiFast", false)

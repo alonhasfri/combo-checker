@@ -45,6 +45,7 @@ class ModelActivity : Screen() {
             val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val accurate = m.id.startsWith("small")
             head.addView(when {
+                m.id.startsWith("large") -> Ui.tile(this, R.drawable.ui_target, "red")
                 m.id.startsWith("turbo") -> Ui.tile(this, R.drawable.ui_spark, "red")
                 accurate -> Ui.tile(this, R.drawable.ui_target, "purple")
                 else -> Ui.tile(this, R.drawable.ui_zap, "orange")

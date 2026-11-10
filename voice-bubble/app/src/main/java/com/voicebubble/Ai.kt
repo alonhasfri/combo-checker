@@ -96,6 +96,24 @@ object Ai {
         return t.trim().removeSurrounding("\"").removeSurrounding("“", "”").trim()
     }
 
+    /**
+     * Fixes speech-recognition mistakes ("their" for "there", a misheard name) without rewording anything.
+     * [words]: names and words the person uses, so they're spelled right.
+     */
+    fun fixMistakes(c: Context, text: String, words: String): String {
+        val out = ask(c,
+            "You correct speech-to-text output. The text was dictated by voice and may contain words the recogniser " +
+                "misheard: a wrong word that sounds like the right one, a split or merged word, a misspelled name, wrong " +
+                "punctuation. Fix only those, using the context to tell what was really said. Do not reword, shorten, " +
+                "add anything, answer it, or change the style, slang or swearing. If nothing is wrong, return it unchanged. " +
+                "Reply with only the corrected text.",
+            (if (words.isNotBlank()) "Names and words this person uses: $words\n\n" else "") + "<text>\n$text\n</text>")
+            .replace("<text>", "").replace("</text>", "").trim().removeSurrounding("\"")
+        // A real fix changes a few words; anything very different means the AI went off and did something else.
+        val ratio = out.length.toFloat() / text.length.coerceAtLeast(1)
+        return if (out.isBlank() || ratio < 0.7f || ratio > 1.4f) text else out
+    }
+
     /** Three short replies the user could send next in the chat on screen. */
     fun replies(c: Context, chat: String, instruction: String): List<String> {
         val out = ask(c,

@@ -215,6 +215,9 @@ class MainActivity : Screen() {
         rows += Ui.row(this, R.drawable.ui_file, "orange", "Length limit (all apps)",
             value = if (prefs.maxChars > 0) "${prefs.maxChars}" else "Off",
             sub = "Roblox gets 200 by itself. For one app: Styles → Specific apps") { pickLimit(this) { render() } }
+        rows += Ui.switchRow(this, R.drawable.ui_target, "green", "AI fixes mistakes",
+            if (Ai.hasKey(this)) "Fixes misheard words from the context. Adds about a second"
+            else "Needs an AI key (Settings → AI)", prefs.aiFix) { on -> prefs.aiFix = on }
         rows += Ui.row(this, R.drawable.ui_wand, "purple", "AI text length", value = Ai.lengthName(prefs.aiLength),
             sub = "Talk like, rewrite, reply and summary. Or say \"${prefs.commandWord}, short\" / \"medium\" / \"long\"") {
             val names = Ai.lengths.map { it.second }.toTypedArray()

@@ -736,6 +736,11 @@ class BubbleService : Service() {
             var problem: String? = null
             // "Talk like …" mode: every dictation rewritten in that voice.
             val persona = prefs.persona
+            // AI fixes misheard words (not needed when the AI rewrites or translates it anyway).
+            if (text != null && prefs.aiFix && persona == null && s.aiTarget == null && Ai.hasKey(this) &&
+                text.split(" ").size >= 3) {
+                text = runCatching { Ai.fixMistakes(this, text!!, Words.prompt(this).trimEnd('.')) }.getOrDefault(text)
+            }
             if (text != null && Royal.wanted(persona) && (prefs.instantRoyal || !Ai.hasKey(this))) {
                 text = Royal.apply(text)   // instant, no AI
             } else if (text != null && persona != null && Ai.hasKey(this)) {
