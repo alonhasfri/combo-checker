@@ -698,7 +698,10 @@ class BubbleService : Service() {
             if (s.whisperFinal) {
                 // Whisper's text is the final one (more accurate); Live's draft only if Whisper got nothing.
                 val parts = synchronized(s) { s.parts.map { it.orEmpty() } }
-                said = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() } ?: liveText
+                val whisper = parts.filter { it.isNotBlank() }.joinToString(" ").trim().takeIf { it.isNotEmpty() }
+                // Whisper lost words or wrote nonsense, but Live heard them: Live's text is the better one.
+                said = if (whisper == null || (liveText != null && (looksBroken(whisper) ||
+                        letterCount(whisper) < letterCount(liveText) * 0.6))) liveText ?: whisper else whisper
                 failed = said == null && synchronized(s) { s.failed }
             } else {
                 said = liveText

@@ -9,6 +9,22 @@ fun audioCtxFor(samples: Int): Int {
     return (Math.ceil(seconds * 50).toInt() + 128).coerceIn(512, 1500)
 }
 
+/**
+ * Whisper sometimes goes wrong on a piece of audio and writes numbers, symbols or the same word over and
+ * over. True when the text looks like that (so it's done again, or the Live engine's text is used).
+ */
+fun looksBroken(text: String): Boolean {
+    val chars = text.filter { !it.isWhitespace() }
+    if (chars.length < 3) return false
+    val letters = chars.count { it.isLetter() }
+    if (letters < chars.length * 0.45) return true
+    val words = text.lowercase().split(Regex("[^\\p{L}\\p{N}']+")).filter { it.isNotEmpty() }
+    return words.size >= 8 && words.distinct().size < words.size * 0.3
+}
+
+/** Letters in a text: a rough measure of how many words it caught. */
+fun letterCount(text: String) = text.count { it.isLetter() }
+
 /** On-device Whisper speech recognition (whisper.cpp). Keeps one model loaded in memory. */
 object Whisper {
     /** True when this phone runs the faster engine build (has the i8mm maths instructions). */
@@ -76,9 +92,17 @@ object Whisper {
                    toEnglish: Boolean = false): String? = synchronized(lock) {
         if (!ensureLoaded(modelPath)) return null
         // Extra accuracy: the full window and 3 parallel guesses (slower). Otherwise quick mode.
-        val audioCtx = if (extraAccuracy) 1500 else audioCtxFor(audio.size)
+        // The large models need the full window: a shortened one makes them write nonsense.
+        val large = modelPath.contains("large")
+        val audioCtx = if (extraAccuracy || large) 1500 else audioCtxFor(audio.size)
         val beams = if (extraAccuracy) 3 else 1
         val bytes = nativeTranscribe(ctx, audio, lang, prompt, threads, audioCtx, beams, toEnglish) ?: return null
-        String(bytes, Charsets.UTF_8)
+        val text = String(bytes, Charsets.UTF_8)
+        // Went wrong (numbers, symbols, one word over and over): once more, carefully, without the word hints.
+        if (looksBroken(text) && !extraAccuracy) {
+            val again = nativeTranscribe(ctx, audio, lang, "", threads, 1500, 3, toEnglish)?.let { String(it, Charsets.UTF_8) }
+            if (again != null && !looksBroken(again)) return again
+        }
+        text
     }
 }

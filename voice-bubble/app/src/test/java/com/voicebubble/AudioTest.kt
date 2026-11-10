@@ -201,3 +201,14 @@ class LengthCommandTest {
             Commands.split("I'm heading home now, out of context, short."))
     }
 }
+
+class BrokenTextTest {
+    @Test fun spotsNonsense() {
+        assertEquals(true, looksBroken("1. 2. 3. 4. 5. 6."))
+        assertEquals(true, looksBroken("12 34 56 78"))
+        assertEquals(true, looksBroken("the the the the the the the the the the"))
+        assertEquals(false, looksBroken("Meet me at 5 pm, I'll bring 2 pizzas."))
+        assertEquals(false, looksBroken("Hey, what's up?"))
+        assertEquals(false, looksBroken("ok"))
+    }
+}
