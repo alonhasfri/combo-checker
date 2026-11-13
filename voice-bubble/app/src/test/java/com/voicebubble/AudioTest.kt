@@ -235,3 +235,11 @@ class AutoLengthAndSkinTest {
         assertNull(SkinArt.parseSpec("sorry, I can't"))
     }
 }
+
+class KeepsMeaningTest {
+    @Test fun rewritesKeepTheMessage() {
+        val said = "Can you bring pizza to the party tonight?"
+        assertEquals(true, Ai.keepsMeaning(said, "Hark, Worm!! Canst thou bringeth Pizza to the Party this Night-eth?!"))
+        assertEquals(false, Ai.keepsMeaning(said, "Howdy! Golly, gee, you IDIOT. Hee hee hee."))
+    }
+}

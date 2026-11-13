@@ -91,16 +91,43 @@ object Ai {
         // A one-off "make this shorter" wins over the lasting length.
         val ownLength = Regex("(?i)\\b(short|long|length|brief|expand)").containsMatchIn(instruction)
         val cap = listOfNotNull(maxChars, if (ownLength) null else lengthCap(c, text.length)).minOrNull()
-        val out = ask(c,
-            "You edit text someone dictated by voice; it's a chat message they're about to send. Apply their instruction " +
-                "to it. Keep the meaning, the language and any names. If they want to sound like a person, character or " +
-                "style (a 1500s royal, a video game character, a pirate…), make it clearly sound like them through a few of " +
-                "their signature words, habits and catchphrases, but keep it natural and easy to read: don't cram a quirk " +
-                "into every word. Don't add new sentences, events, stories or details they didn't say. " +
-                "Reply with only the new text: no quotes, no explanation.",
-            "Instruction: $instruction\n\nText:\n$text" + (if (ownLength) "" else lengthNote(c, "rewrite")) +
-                limitNote(cap) + chatNote(c))
+        val system = "You rewrite a chat message someone dictated by voice, before they send it. You are NOT chatting with " +
+            "them: never answer the message, reply to it or react to it. Your output is the SAME message (same meaning, " +
+            "same requests, questions, facts, names, times and places), just rewritten the way the instruction says. " +
+            "Every point in the message must still be in your version, and nothing new added (no extra events, stories " +
+            "or details). If the instruction is to sound like a person, character or style, say THEIR message the way " +
+            "that character would say it: their grammar, typical words, habits and catchphrases woven into what was " +
+            "said; a few touches, natural and easy to read, not a quirk on every word, not just catchphrases on their own. " +
+            "Reply with only the rewritten message: no quotes, no explanation.\n\nInstruction: $instruction"
+        fun user(extra: String) = "The message to rewrite:\n<message>\n$text\n</message>" +
+            (if (ownLength) "" else lengthNote(c, "rewrite")) + limitNote(cap) + chatNote(c) + extra +
+            "\n\nNow write that same message, rewritten as instructed. Only the rewritten message."
+        var out = ask(c, system, user("")).let { clean(it) }
+        // The AI said its own thing instead of your message: once more, firmly.
+        if (!keepsMeaning(text, out)) {
+            val again = runCatching { clean(ask(c, system, user("\n\nImportant: keep every point of the message. Don't " +
+                "replace it with the character's usual lines; rewrite what it says."))) }.getOrNull()
+            if (again != null && keepsMeaning(text, again)) out = again
+        }
         return if (cap != null && out.length > cap) Limit.fit(out, cap).first else out
+    }
+
+    private fun clean(s: String) = s.replace("<message>", "").replace("</message>", "").trim().removeSurrounding("\"")
+
+    private val small = setOf("that", "this", "with", "have", "from", "they", "them", "what", "when", "will", "your",
+        "just", "like", "about", "there", "their", "were", "been", "would", "could", "should", "into", "then", "than",
+        "want", "really", "going", "gonna", "okay", "yeah", "some", "make", "know", "also", "very", "please")
+
+    /**
+     * Rough check that a rewrite still says what you said: most of your meaningful words (or their first letters,
+     * since characters bend words: "textedeth") are still in it.
+     */
+    fun keepsMeaning(original: String, rewrite: String): Boolean {
+        val words = original.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 4 && it !in small }.distinct()
+        if (words.size < 2) return true
+        val out = rewrite.lowercase()
+        val kept = words.count { w -> out.contains(w.take(4)) || (w.all { it.isDigit() } && out.contains(w)) }
+        return kept >= words.size * 0.4
     }
 
     fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = cleanTranslation(ask(c,
