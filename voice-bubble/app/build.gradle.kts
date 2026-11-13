@@ -102,4 +102,5 @@ dependencies {
     // the release AAR into app/libs/ (too big to keep in git).
     implementation(files("libs/sherpa-onnx.aar"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
