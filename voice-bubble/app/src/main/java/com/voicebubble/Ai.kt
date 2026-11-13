@@ -34,7 +34,7 @@ object Ai {
     }
 
     private fun limitNote(maxChars: Int?) =
-        if (maxChars != null && maxChars > 0) "\n\nHard limit: the result must be at most $maxChars characters long (shorten it if needed)." else ""
+        if (maxChars != null && maxChars > 0) "\n\nHard limit: at most $maxChars characters in total. Count them; shorten it if needed." else ""
 
     /** Names for the length choice, shown in the app. */
     val lengths = listOf("" to "As I said it", "auto" to "Auto (AI decides)", "short" to "Short", "medium" to "Medium", "long" to "Long")
@@ -44,12 +44,12 @@ object Ai {
         "short" -> when (kind) {
             "reply" -> "\n\nLength: short. Each reply is a few words, like a quick text."
             "summary" -> "\n\nLength: short. Just 2 bullet points."
-            else -> "\n\nLength: short. Make the result clearly shorter than the text, about half as long, one or two sentences at most."
+            else -> "\n\nLength: SHORT. The result must be shorter than the text: one or two brief sentences, no more."
         }
         "medium" -> when (kind) {
             "reply" -> "\n\nLength: medium. Each reply is one full sentence."
             "summary" -> "\n\nLength: medium. 3 or 4 bullet points."
-            else -> "\n\nLength: medium. Keep the result about as long as the text."
+            else -> "\n\nLength: medium. Keep the result about as long as the text; don't add sentences."
         }
         "long" -> when (kind) {
             "reply" -> "\n\nLength: long. Each reply is 2 or 3 sentences."
@@ -60,28 +60,54 @@ object Ai {
         "auto" -> when (kind) {
             "reply" -> "\n\nLength: you decide what fits each reply: how the person or character would really text, and what the chat needs."
             "summary" -> "\n\nLength: you decide how many bullet points the conversation needs (2 to 7)."
-            else -> "\n\nLength: you decide. Make it as long as fits the voice and the moment: a character who rambles or " +
-                "monologues can run longer, a curt one stays brief; a quick chat message stays quick, a story or explanation can be fuller."
+            else -> "\n\nLength: you decide, but stay reasonable for a chat message. A character who rambles can add a little; " +
+                "a curt one stays brief; a quick message stays quick. Never more than about twice as long as the text."
         }
         else -> ""
     }
 
-    fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String = ask(c,
-        "You edit text someone dictated by voice. Apply their instruction to it. Keep the meaning, " +
-            "the language and any names. If they want to sound like a person, character or style (a 1500s royal, " +
-            "a video game character, a pirate…), go all the way: imitate their typical words, grammar, spelling " +
-            "quirks and catchphrases, while still saying what the person wanted to say. " +
-            "Reply with only the new text: no quotes, no explanation.",
-        "Instruction: $instruction\n\nText:\n$text" +
-            // A one-off "make this shorter" wins over the lasting length.
-            (if (Regex("(?i)\\b(short|long|length|brief|expand)").containsMatchIn(instruction)) "" else lengthNote(c, "rewrite")) +
-            limitNote(maxChars))
+    /**
+     * The longest a rewrite may be, from the length setting (null = no cap). The AI is told this number, and
+     * anything still longer is cut at the end of a sentence, because AIs love to add more than asked.
+     */
+    fun lengthCap(c: Context, textLen: Int): Int? = when (Prefs(c).aiLength) {
+        "short" -> maxOf(50, (textLen * 0.9).toInt())
+        "medium" -> maxOf(80, (textLen * 1.3).toInt())
+        "auto" -> maxOf(110, (textLen * 2.2).toInt())
+        "long" -> null
+        else -> maxOf(90, (textLen * 1.8).toInt())   // "as I said it": about as long as what you said
+    }
+
+    /** Roblox hides (####) anything its chat filter doesn't like: the AI writes so it gets through. */
+    private fun chatNote(c: Context): String =
+        if (runCatching { AppDetector.current(c) == Limit.ROBLOX }.getOrDefault(false))
+            "\n\nThis goes into Roblox chat, whose filter hides (####) messages it doesn't like. Keep it clean so it gets " +
+                "through: no swear words (not even mild ones), no insults (idiot, stupid, dumb), no violent words (kill, die, " +
+                "dead, blood), no digits or numbers, no links, emails, usernames or app names (Discord, Snapchat…), " +
+                "no square brackets, \$ signs or odd spellings. Keep the character's voice with clean words."
+        else ""
+
+    fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String {
+        // A one-off "make this shorter" wins over the lasting length.
+        val ownLength = Regex("(?i)\\b(short|long|length|brief|expand)").containsMatchIn(instruction)
+        val cap = listOfNotNull(maxChars, if (ownLength) null else lengthCap(c, text.length)).minOrNull()
+        val out = ask(c,
+            "You edit text someone dictated by voice; it's a chat message they're about to send. Apply their instruction " +
+                "to it. Keep the meaning, the language and any names. If they want to sound like a person, character or " +
+                "style (a 1500s royal, a video game character, a pirate…), make it clearly sound like them through a few of " +
+                "their signature words, habits and catchphrases, but keep it natural and easy to read: don't cram a quirk " +
+                "into every word. Don't add new sentences, events, stories or details they didn't say. " +
+                "Reply with only the new text: no quotes, no explanation.",
+            "Instruction: $instruction\n\nText:\n$text" + (if (ownLength) "" else lengthNote(c, "rewrite")) +
+                limitNote(cap) + chatNote(c))
+        return if (cap != null && out.length > cap) Limit.fit(out, cap).first else out
+    }
 
     fun translate(c: Context, text: String, language: String, maxChars: Int? = null): String = cleanTranslation(ask(c,
         "You translate text someone dictated by voice; it gets sent as a chat message. Keep the tone, names and emoji. " +
             "Reply with only the translated message itself: no label or heading (never \"Message in $language:\" or " +
             "\"Translation:\"), no quotes, no explanation.",
-        "Translate the text between the tags into $language.\n<text>\n$text\n</text>" + limitNote(maxChars)), language)
+        "Translate the text between the tags into $language.\n<text>\n$text\n</text>" + limitNote(maxChars) + chatNote(c)), language)
 
     /** Removes labels some AIs add anyway ("Message in Hebrew:", "Translation:", "**Hebrew:**", <text> tags). */
     fun cleanTranslation(out: String, language: String): String {
@@ -132,7 +158,9 @@ object Ai {
                 "short replies they could send next, written as they would text. Their request may say what to reply, " +
                 "how to say it (a style like gen z slang, formal or flirty, or a character to sound like), or both: follow it. " +
                 "One reply per line, no numbering, no quotes.",
-            (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat" + lengthNote(c, "reply"))
+            (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat" + lengthNote(c, "reply") +
+                chatNote(c) + (if (runCatching { AppDetector.current(c) == Limit.ROBLOX }.getOrDefault(false))
+                    "\nEach reply at most ${Limit.ROBLOX_CHARS} characters." else ""))
         return out.lines().map { it.trim().removePrefix("-").removePrefix("•").trim().trim('"') }
             .filter { it.isNotEmpty() }.take(3)
     }

@@ -23,7 +23,7 @@ Example: "I'll be home at 6" → "Hark, Worm!! Thy Duke shalt returneth to his A
 Spamton G. Spamton from Deltarune: a frantic, glitchy little salesman who talks like spam emails and pop-up ads.
 - Words and phrases get swapped for ad/internet phrases in double square brackets: [[Hyperlink Blocked]],
   [[Number 1 Rated Salesman1997]], [[Special Deal]], [[Limited Time Offer]], [[Cheap]], [[Click Here]],
-  [[Hot Singles In Your Area]], [[Free Trial]]. Usually 2-4 per message, replacing a word that fits loosely.
+  [[Hot Singles In Your Area]], [[Free Trial]]. One or two per message, replacing a word that fits loosely.
 - Erratic capitals: whole words in CAPS, random caps in the middle, occasional "!!!" and "$$$".
 - Obsessed with being a BIG SHOT, deals, and KROMER (his word for money).
 - Glitchy repeats and stretched spacing ("HEY   EVERY  BUDDY!!"), sales pitches, calls people "KID" or
@@ -113,7 +113,8 @@ Example: "Can you help me?" → "Hah. You dare ask the King of Curses for help, 
     /** What the AI is told for "make me sound like …": the character's guide when there is one. */
     fun instruction(who: String): String {
         val g = guideFor(who) ?: return "Make me sound like $who"
-        return "Make me sound like this character. Follow the guide closely: the voice, the habits and the words " +
-            "they use. Still say what I meant, as a message I'm sending.\n\n$g"
+        return "Make me sound like this character, using the guide for their voice, habits and words. Use a few of " +
+            "these touches so it's clearly them, not all of them at once. Still say just what I meant, as a message " +
+            "I'm sending: no extra sentences or story. The examples show the voice, not how much to write.\n\n$g"
     }
 }
