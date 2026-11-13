@@ -39,9 +39,15 @@ object RobloxSafe {
     fun clean(text: String): Result {
         var changed = 0
         var t = text
-        for ((re, to) in rules) t = re.replace(t) { m ->
-            changed++
-            if (m.value[0].isUpperCase()) to.replaceFirstChar { it.uppercaseChar() } else to
+        for ((re, to) in rules) {
+            val src = t
+            t = re.replace(src) { m ->
+                changed++
+                // A capital only at the start of a sentence ("Discord" mid-sentence → "the other app").
+                val before = src.substring(0, m.range.first).trimEnd()
+                val starts = before.isEmpty() || before.last() in ".!?\n"
+                if (starts && m.value[0].isUpperCase()) to.replaceFirstChar { it.uppercaseChar() } else to
+            }
         }
         // Digits get hashed: write them as words (long ones, like phone numbers, are dropped).
         t = Regex("\\d+").replace(t) { m ->
