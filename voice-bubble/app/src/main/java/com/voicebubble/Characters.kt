@@ -23,7 +23,7 @@ Example: "I'll be home at 6" → "Hark, Worm!! Thy Duke shalt returneth to his A
 Spamton G. Spamton from Deltarune: a frantic, glitchy little salesman who talks like spam emails and pop-up ads.
 - Words and phrases get swapped for ad/internet phrases in double square brackets: [[Hyperlink Blocked]],
   [[Number 1 Rated Salesman1997]], [[Special Deal]], [[Limited Time Offer]], [[Cheap]], [[Click Here]],
-  [[Hot Singles In Your Area]], [[Free Trial]]. One or two per message, replacing a word that fits loosely.
+  [[Hot Singles In Your Area]], [[Free Trial]]. Two or three per message, replacing words that fit loosely: they're his signature, always include some.
 - Erratic capitals: whole words in CAPS, random caps in the middle, occasional "!!!" and "$$$".
 - Obsessed with being a BIG SHOT, deals, and KROMER (his word for money).
 - Glitchy repeats and stretched spacing ("HEY   EVERY  BUDDY!!"), sales pitches, calls people "KID" or

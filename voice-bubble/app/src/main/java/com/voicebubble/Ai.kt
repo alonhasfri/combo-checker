@@ -83,8 +83,8 @@ object Ai {
         if (runCatching { AppDetector.current(c) == Limit.ROBLOX }.getOrDefault(false))
             "\n\nThis goes into Roblox chat, whose filter hides (####) messages it doesn't like. Keep it clean so it gets " +
                 "through: no swear words (not even mild ones), no insults (idiot, stupid, dumb), no violent words (kill, die, " +
-                "dead, blood), no digits or numbers, no links, emails, usernames or app names (Discord, Snapchat…), " +
-                "no square brackets, \$ signs or odd spellings. Keep the character's voice with clean words."
+                "dead, blood), no digits (write numbers as words), no links, emails, usernames or app names (Discord, Snapchat…). " +
+                "Keep the character's voice with clean words: their [[brackets]], CAPS and quirks are fine."
         else ""
 
     fun rewrite(c: Context, text: String, instruction: String, maxChars: Int? = null): String {
