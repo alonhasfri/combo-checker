@@ -219,7 +219,7 @@ class MainActivity : Screen() {
             if (Ai.hasKey(this)) "Fixes misheard words from the context. Adds about a second"
             else "Needs an AI key (Settings → AI)", prefs.aiFix) { on -> prefs.aiFix = on }
         rows += Ui.row(this, R.drawable.ui_wand, "purple", "AI text length", value = Ai.lengthName(prefs.aiLength),
-            sub = "Talk like, rewrite, reply and summary. Or say \"${prefs.commandWord}, short\" / \"medium\" / \"long\"") {
+            sub = "Talk like, rewrite, reply and summary. Or say \"${prefs.commandWord}, short\" / \"medium\" / \"long\" / \"auto\"") {
             val names = Ai.lengths.map { it.second }.toTypedArray()
             val cur = Ai.lengths.indexOfFirst { it.first == prefs.aiLength }.coerceAtLeast(0)
             Ui.dialog(this).setTitle("How long should AI text be?").setSingleChoiceItems(names, cur) { d, i ->

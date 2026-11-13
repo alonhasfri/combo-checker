@@ -161,7 +161,7 @@ class BubbleService : Service() {
 
     /** Skin and caps badge from the current settings. */
     private fun refreshLook() {
-        view?.skin = Skins.byId(prefs.skin)
+        view?.skin = Skins.byId(this, prefs.skin)
         view?.caps = prefs.capsLock
         view?.persona = prefs.persona != null
         styleCapsChip()

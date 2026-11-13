@@ -222,3 +222,16 @@ class CharactersTest {
         assertEquals("Make me sound like a pirate", Characters.instruction("a pirate"))
     }
 }
+
+class AutoLengthAndSkinTest {
+    @Test fun autoLength() {
+        assertEquals(Cmd.Length("auto"), Commands.parse("out of context, auto length"))
+        assertEquals(Cmd.Length("auto"), Commands.parse("Out of context, auto."))
+    }
+
+    @Test fun readsAiSkin() {
+        val spec = SkinArt.parseSpec("Here you go:\n{\"name\":\"Pizza\", // tasty\n\"background\":[\"#FF8800\"],\"shapes\":[]}")
+        assertEquals("Pizza", spec!!.getString("name"))
+        assertNull(SkinArt.parseSpec("sorry, I can't"))
+    }
+}

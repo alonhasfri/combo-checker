@@ -112,7 +112,7 @@ object Commands {
      */
     private fun length(n: String): String? {
         Regex("^(?:keep (?:it|them|everything|things|my messages|messages|replies|answers) |always |use |switch to |go |set (?:it |length |the length )?to )?" +
-            "(short|shorter|brief|medium|middle|normal|regular|long|longer|any|no)" +
+            "(short|shorter|brief|medium|middle|normal|regular|long|longer|any|no|auto|automatic|smart)" +
             "(?: (?:mode|length|size|answers|replies|messages|ones|texts?))?(?: from now on| please)?$").find(n)?.let { m ->
             val word = m.groupValues[1]
             val plain = m.value == word
@@ -123,11 +123,12 @@ object Commands {
                 "short", "shorter", "brief" -> "short"
                 "medium", "middle" -> "medium"
                 "long", "longer" -> "long"
+                "auto", "automatic", "smart" -> "auto"
                 else -> ""
             }
         }
-        Regex("^(?:length|size) (short|medium|long|normal|off|any)$").find(n)?.let { m ->
-            return when (val w = m.groupValues[1]) { "short", "medium", "long" -> w; else -> "" }
+        Regex("^(?:length|size) (short|medium|long|normal|off|any|auto|automatic)$").find(n)?.let { m ->
+            return when (val w = m.groupValues[1]) { "short", "medium", "long" -> w; "auto", "automatic" -> "auto"; else -> "" }
         }
         if (Regex("^(?:stop|turn off|disable|no more) (?:short|long|medium) (?:mode|length|answers)$").matches(n)) return ""
         return null

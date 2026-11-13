@@ -15,7 +15,7 @@ class SettingsActivity : Screen() {
         // Bubble
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
         page.addView(Ui.group(this, listOf(
-            Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(prefs.skin).title) { pickSkin() },
+            Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(this, prefs.skin).title) { pickSkin() },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = "${prefs.bubbleSizeDp} dp",
                 sub = "Bigger or smaller bubble") {
                 val sizes = listOf(52 to "Small", 72 to "Medium", 92 to "Large", 112 to "Extra large")
@@ -188,30 +188,104 @@ class SettingsActivity : Screen() {
         ).setPositiveButton("Got it", null).show()
     }
 
-    /** All the skins as little bubbles to tap. */
+    /** All the skins as little bubbles to tap, plus making your own. */
     private fun pickSkin() {
         val prefs = Prefs(this)
         val grid = android.widget.GridLayout(this).apply { columnCount = 4; setPaddingRelative(dp(12), dp(8), dp(12), dp(8)) }
         lateinit var dialog: android.app.AlertDialog
-        Skins.all.forEach { sk ->
-            val cell = android.widget.LinearLayout(this).apply {
+        fun cell(preview: android.view.View, title: String, chosen: Boolean, onLong: (() -> Unit)? = null, onTap: () -> Unit) {
+            val v = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
                 gravity = android.view.Gravity.CENTER_HORIZONTAL
                 setPaddingRelative(dp(4), dp(8), dp(4), dp(8))
-                addView(BubbleView(this@SettingsActivity).apply { skin = sk }, android.widget.LinearLayout.LayoutParams(dp(60), dp(60)))
-                addView(Ui.text(this@SettingsActivity, sk.title, 12f, if (sk.id == prefs.skin) p.accent else p.ink, bold = sk.id == prefs.skin).apply {
-                    gravity = android.view.Gravity.CENTER; maxLines = 1
+                addView(preview, android.widget.LinearLayout.LayoutParams(dp(60), dp(60)))
+                addView(Ui.text(this@SettingsActivity, title, 12f, if (chosen) p.accent else p.ink, bold = chosen).apply {
+                    gravity = android.view.Gravity.CENTER; maxLines = 2
                 })
                 isClickable = true
                 Ui.ripple(this@SettingsActivity, this)
-                setOnClickListener { prefs.skin = sk.id; dialog.dismiss(); refreshBubble(); render() }
+                setOnClickListener { dialog.dismiss(); onTap() }
+                onLong?.let { l -> setOnLongClickListener { dialog.dismiss(); l(); true } }
             }
-            grid.addView(cell, android.widget.GridLayout.LayoutParams().apply {
+            grid.addView(v, android.widget.GridLayout.LayoutParams().apply {
                 width = 0; columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
             })
         }
-        dialog = Ui.dialog(this).setTitle("Bubble skin").setView(android.widget.ScrollView(this).apply { addView(grid) })
+        fun actionTile(res: Int, tone: String) = android.widget.FrameLayout(this).apply {
+            addView(Ui.tile(this@SettingsActivity, res, tone, 52, 26), android.widget.FrameLayout.LayoutParams(dp(52), dp(52), android.view.Gravity.CENTER))
+        }
+        // Make your own first.
+        cell(actionTile(R.drawable.ui_upload, "blue"), "Upload picture", false) {
+            @Suppress("DEPRECATION")
+            startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), PICK_SKIN)
+        }
+        cell(actionTile(R.drawable.ui_wand, "purple"), "Make with AI", false) { designSkin() }
+        Skins.all(this).forEach { sk ->
+            val delete: (() -> Unit)? = if (sk.custom) ({
+                Ui.dialog(this).setTitle("Delete \"${sk.title}\"?").setPositiveButton("Delete") { _, _ ->
+                    SkinArt.delete(this, sk.id)
+                    if (prefs.skin == sk.id) prefs.skin = "classic"
+                    refreshBubble(); render()
+                }.setNegativeButton("Cancel", null).show()
+                Unit
+            }) else null
+            cell(BubbleView(this).apply { skin = sk }, sk.title, sk.id == prefs.skin, delete) {
+                prefs.skin = sk.id; refreshBubble(); render()
+            }
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(Ui.note(this@SettingsActivity, "Hold one of your own skins to delete it.").apply { setPaddingRelative(dp(22), dp(4), dp(22), 0) })
+            addView(grid)
+        }
+        dialog = Ui.dialog(this).setTitle("Bubble skin").setView(android.widget.ScrollView(this).apply { addView(box) })
             .setNegativeButton("Cancel", null).create()
         dialog.show()
     }
+
+    /** Describe a skin; the AI draws it. */
+    private fun designSkin() {
+        if (!Ai.hasKey(this)) { toast("Making skins with AI needs an AI key (Settings → AI)"); return }
+        val f = Ui.field(this, "e.g. a pizza with sunglasses, a purple galaxy cat, a red soul heart with flames")
+        Ui.dialog(this).setTitle("Describe your skin").setView(Ui.padded(this, f)).setPositiveButton("Make it") { _, _ ->
+            val what = f.text.toString().trim()
+            if (what.isEmpty()) return@setPositiveButton
+            toast("Designing your skin…")
+            val app = applicationContext
+            Thread {
+                var spec: org.json.JSONObject? = null
+                var problem: String? = null
+                // Free AIs sometimes send broken drawings: one more try.
+                for (attempt in 0 until 2) {
+                    try {
+                        spec = SkinArt.parseSpec(Ai.designSkin(app, what))
+                        if (spec != null) break
+                    } catch (e: Ai.Failure) { problem = e.message; break }
+                }
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    val s = spec
+                    if (s == null) { toast(problem ?: "The AI's drawing didn't work. Try again or describe it differently"); return@runOnUiThread }
+                    val id = SkinArt.addDesign(app, s)
+                    Prefs(this).skin = id
+                    refreshBubble(); render()
+                    toast("Made \"${Skins.byId(this, id).title}\" and put it on your bubble")
+                }
+            }.start()
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != PICK_SKIN || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        val id = runCatching { SkinArt.addPicture(this, uri) }.getOrNull()
+        if (id == null) { toast("Couldn't open that picture"); return }
+        Prefs(this).skin = id
+        refreshBubble(); render()
+        toast("Your picture is your bubble now")
+    }
+
+    companion object { private const val PICK_SKIN = 41 }
 }

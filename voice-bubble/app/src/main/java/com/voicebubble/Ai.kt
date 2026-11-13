@@ -37,7 +37,7 @@ object Ai {
         if (maxChars != null && maxChars > 0) "\n\nHard limit: the result must be at most $maxChars characters long (shorten it if needed)." else ""
 
     /** Names for the length choice, shown in the app. */
-    val lengths = listOf("" to "As I said it", "short" to "Short", "medium" to "Medium", "long" to "Long")
+    val lengths = listOf("" to "As I said it", "auto" to "Auto (AI decides)", "short" to "Short", "medium" to "Medium", "long" to "Long")
     fun lengthName(v: String) = lengths.firstOrNull { it.first == v }?.second ?: "As I said it"
 
     private fun lengthNote(c: Context, kind: String): String = when (Prefs(c).aiLength) {
@@ -55,6 +55,13 @@ object Ai {
             "reply" -> "\n\nLength: long. Each reply is 2 or 3 sentences."
             "summary" -> "\n\nLength: long. 5 to 7 bullet points with details."
             else -> "\n\nLength: long. Make the result about twice as long as the text: add natural detail and flair, without changing what they meant."
+        }
+        // The AI picks: the character's way of talking and what the message is for.
+        "auto" -> when (kind) {
+            "reply" -> "\n\nLength: you decide what fits each reply: how the person or character would really text, and what the chat needs."
+            "summary" -> "\n\nLength: you decide how many bullet points the conversation needs (2 to 7)."
+            else -> "\n\nLength: you decide. Make it as long as fits the voice and the moment: a character who rambles or " +
+                "monologues can run longer, a curt one stays brief; a quick chat message stays quick, a story or explanation can be fuller."
         }
         else -> ""
     }
@@ -114,6 +121,9 @@ object Ai {
         return if (out.isBlank() || ratio < 0.7f || ratio > 1.4f) text else out
     }
 
+    /** Designs a bubble skin from a description: a small drawing as JSON (see [SkinArt]). */
+    fun designSkin(c: Context, description: String): String = ask(c, SkinArt.AI_FORMAT, "Design a bubble skin: $description", longAnswer = true)
+
     /** Three short replies the user could send next in the chat on screen. */
     fun replies(c: Context, chat: String, instruction: String): List<String> {
         val out = ask(c,
@@ -135,12 +145,12 @@ object Ai {
         (if (instruction.isNotBlank()) "My request: $instruction\n\n" else "") + "Screen:\n$chat" + lengthNote(c, "summary"))
 
     /** Blocking call: run it off the main thread. Throws [Failure] with a message you can show. */
-    private fun ask(c: Context, system: String, user: String): String {
+    private fun ask(c: Context, system: String, user: String, longAnswer: Boolean = false): String {
         val k = key(c)
         if (k.isEmpty()) throw Failure("Add an AI key first (Settings → AI)")
         val text = when {
             k.startsWith("sk-ant") -> claude(k, system, user, Prefs(c).aiFast)
-            k.startsWith("sk-or-") -> openRouter(k, system, user)
+            k.startsWith("sk-or-") -> openRouter(k, system, user, longAnswer)
             else -> gemini(k, system, user)
         }
         return text.trim().ifEmpty { throw Failure("The AI sent back nothing. Try again") }
@@ -189,8 +199,8 @@ object Ai {
         "openrouter/free",                     // OpenRouter picks any free model
     )
 
-    private fun openRouter(key: String, system: String, user: String): String {
-        val maxTokens = (user.length * 2 + 300).coerceAtMost(1500)
+    private fun openRouter(key: String, system: String, user: String, longAnswer: Boolean = false): String {
+        val maxTokens = if (longAnswer) 3000 else (user.length * 2 + 300).coerceAtMost(1500)
         // Free models are often slow only because they're busy: ask two at once and take the first answer.
         val racers = openRouterModels.take(2)
         val pool = java.util.concurrent.Executors.newFixedThreadPool(racers.size)

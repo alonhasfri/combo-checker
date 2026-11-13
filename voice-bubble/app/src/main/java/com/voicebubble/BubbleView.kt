@@ -19,7 +19,10 @@ import kotlin.math.sin
 object Skins {
     /** [pattern]: something drawn on top ("eye" replaces the microphone, "galaxy" adds stars, "rainbow" colours it). */
     class Skin(val id: String, val title: String, val idle: Int, val idle2: Int? = null, val icon: Int = Color.WHITE,
-               val shape: String = "circle", val glow: Int? = null, val pattern: String = "")
+               val shape: String = "circle", val glow: Int? = null, val pattern: String = "",
+               /** Your own skins: an uploaded picture, or the AI's drawing (and whether it keeps the microphone). */
+               val image: android.graphics.Bitmap? = null, val art: org.json.JSONObject? = null,
+               val showMic: Boolean = true, val custom: Boolean = false)
 
     val all = listOf(
         Skin("classic", "Classic", Color.rgb(58, 91, 217)),
@@ -59,6 +62,32 @@ object Skins {
         Skin("determination", "Determination", Color.rgb(0, 0, 0), glow = Color.rgb(255, 30, 30), pattern = "soul"),
     )
     fun byId(id: String?) = all.firstOrNull { it.id == id } ?: all[0]
+
+    private val pictures = HashMap<String, android.graphics.Bitmap?>()
+
+    /** The built-in skins plus the ones you made. */
+    fun all(c: android.content.Context): List<Skin> = all + SkinArt.list(c).mapNotNull { cs ->
+        when (cs.kind) {
+            "image" -> {
+                val bmp = pictures.getOrPut(cs.id) { android.graphics.BitmapFactory.decodeFile(SkinArt.imageFile(c, cs.id).path) }
+                    ?: return@mapNotNull null
+                Skin(cs.id, cs.title, Color.BLACK, pattern = "image", image = bmp, showMic = false, custom = true)
+            }
+            "ai" -> {
+                val spec = cs.spec ?: return@mapNotNull null
+                val bg = spec.optJSONArray("background")
+                val c1 = SkinArt.color(bg?.opt(0) ?: spec.opt("background"), Color.rgb(58, 91, 217))
+                val c2 = bg?.opt(1)?.let { SkinArt.color(it, c1) }
+                val mic = spec.opt("mic")
+                Skin(cs.id, cs.title, c1, idle2 = c2, icon = SkinArt.color(mic, Color.WHITE),
+                    glow = spec.opt("glow")?.let { if (it is String) SkinArt.color(it, Color.WHITE) else null },
+                    pattern = "art", art = spec, showMic = mic is String, custom = true)
+            }
+            else -> null
+        }
+    }
+
+    fun byId(c: android.content.Context, id: String?) = all(c).firstOrNull { it.id == id } ?: all[0]
 }
 
 /** The floating button: a microphone that turns red while listening. */
@@ -173,6 +202,16 @@ class BubbleView(context: Context) : View(context) {
     private fun drawPattern(c: Canvas, cx: Float, cy: Float, r: Float) {
         pat.shader = null; pat.maskFilter = null
         when (skin.pattern) {
+            "image" -> skin.image?.let { bmp ->
+                c.save(); c.clipPath(shapePath(cx, cy, r))
+                c.drawBitmap(bmp, null, RectF(cx - r, cy - r, cx + r, cy + r), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+                c.restore()
+            }
+            "art" -> skin.art?.let { spec ->
+                c.save(); c.clipPath(shapePath(cx, cy, r))
+                SkinArt.drawShapes(c, spec, cx, cy, r)
+                c.restore()
+            }
             "hollowpurple" -> {
                 // A red and a blue orb colliding into purple.
                 pat.maskFilter = BlurMaskFilter(r * 0.12f, BlurMaskFilter.Blur.NORMAL)
@@ -439,6 +478,7 @@ class BubbleView(context: Context) : View(context) {
         }
 
         if (skin.pattern == "eye") { drawEye(c, cx, cy, r); return }
+        if (!skin.showMic) return
         if (skin.pattern == "savepoint") { drawSparkle(c, cx, cy, r * 0.62f, Color.rgb(255, 225, 70)); return }
         if (skin.pattern == "soul") { drawHeart(c, cx, cy + r * 0.05f, r * 0.5f, Color.rgb(255, 20, 30)); return }
 
