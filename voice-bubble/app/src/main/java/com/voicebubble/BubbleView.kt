@@ -44,6 +44,19 @@ object Skins {
         Skin("soul", "Red soul", Color.rgb(255, 0, 20), shape = "heart", glow = Color.rgb(255, 60, 60)),
         Skin("diamond", "Diamond", Color.rgb(200, 245, 255), idle2 = Color.rgb(90, 200, 240), icon = Color.rgb(10, 50, 90), shape = "diamond", glow = Color.WHITE),
         Skin("honey", "Honey", Color.rgb(255, 190, 20), idle2 = Color.rgb(230, 140, 0), icon = Color.rgb(70, 40, 0), shape = "hexagon"),
+        // Jujutsu Kaisen
+        Skin("hollowpurple", "Hollow Purple", Color.rgb(120, 40, 200), idle2 = Color.rgb(30, 0, 60), glow = Color.rgb(200, 120, 255), pattern = "hollowpurple"),
+        Skin("infinity", "Infinity", Color.rgb(170, 230, 255), idle2 = Color.rgb(40, 120, 220), glow = Color.rgb(150, 220, 255), pattern = "infinity"),
+        Skin("domain", "Domain Expansion", Color.rgb(0, 0, 0), glow = Color.WHITE, pattern = "domain"),
+        Skin("blackflash", "Black Flash", Color.rgb(10, 10, 12), icon = Color.rgb(255, 60, 60), glow = Color.rgb(255, 30, 30), pattern = "blackflash"),
+        Skin("cursedenergy", "Cursed Energy", Color.rgb(20, 10, 40), icon = Color.rgb(180, 160, 255), glow = Color.rgb(120, 70, 255), pattern = "flames"),
+        // Deltarune & Undertale
+        Skin("savepoint", "Save Point", Color.rgb(12, 10, 30), glow = Color.rgb(255, 230, 90), pattern = "savepoint"),
+        Skin("bigshot", "Big Shot", Color.rgb(255, 90, 180), idle2 = Color.rgb(255, 225, 40), icon = Color.rgb(30, 20, 40), glow = Color.rgb(255, 230, 80), pattern = "bigshot"),
+        Skin("cardcastle", "Card Castle", Color.rgb(25, 25, 35), glow = Color.rgb(230, 40, 60), pattern = "suits"),
+        Skin("darkfountain", "Dark Fountain", Color.rgb(5, 5, 10), glow = Color.WHITE, pattern = "fountain"),
+        Skin("kromer", "Kromer", Color.rgb(255, 205, 60), idle2 = Color.rgb(200, 140, 20), icon = Color.rgb(90, 55, 0), glow = Color.rgb(255, 225, 120), pattern = "coin"),
+        Skin("determination", "Determination", Color.rgb(0, 0, 0), glow = Color.rgb(255, 30, 30), pattern = "soul"),
     )
     fun byId(id: String?) = all.firstOrNull { it.id == id } ?: all[0]
 }
@@ -121,6 +134,146 @@ class BubbleView(context: Context) : View(context) {
             else -> path.addCircle(cx, cy, r, Path.Direction.CW)
         }
         return path
+    }
+
+    private val pat = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val patStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val patPath = Path()
+
+    /** Four-pointed twinkle star. */
+    private fun drawSparkle(c: Canvas, cx: Float, cy: Float, s: Float, color: Int) {
+        patPath.reset()
+        patPath.moveTo(cx, cy - s)
+        patPath.quadTo(cx + s * 0.12f, cy - s * 0.12f, cx + s, cy)
+        patPath.quadTo(cx + s * 0.12f, cy + s * 0.12f, cx, cy + s)
+        patPath.quadTo(cx - s * 0.12f, cy + s * 0.12f, cx - s, cy)
+        patPath.quadTo(cx - s * 0.12f, cy - s * 0.12f, cx, cy - s)
+        patPath.close()
+        pat.shader = null
+        pat.color = color
+        pat.maskFilter = BlurMaskFilter(s * 0.25f, BlurMaskFilter.Blur.SOLID)
+        c.drawPath(patPath, pat)
+        pat.maskFilter = null
+    }
+
+    private fun drawHeart(c: Canvas, cx: Float, cy: Float, w: Float, color: Int) {
+        patPath.reset()
+        patPath.moveTo(cx, cy + w * 0.85f)
+        patPath.cubicTo(cx - w * 1.4f, cy - w * 0.05f, cx - w * 0.6f, cy - w * 1.1f, cx, cy - w * 0.4f)
+        patPath.cubicTo(cx + w * 0.6f, cy - w * 1.1f, cx + w * 1.4f, cy - w * 0.05f, cx, cy + w * 0.85f)
+        patPath.close()
+        pat.shader = null
+        pat.color = color
+        pat.maskFilter = BlurMaskFilter(w * 0.18f, BlurMaskFilter.Blur.SOLID)
+        c.drawPath(patPath, pat)
+        pat.maskFilter = null
+    }
+
+    /** The themed skins' artwork, drawn over the bubble (behind the microphone). */
+    private fun drawPattern(c: Canvas, cx: Float, cy: Float, r: Float) {
+        pat.shader = null; pat.maskFilter = null
+        when (skin.pattern) {
+            "hollowpurple" -> {
+                // A red and a blue orb colliding into purple.
+                pat.maskFilter = BlurMaskFilter(r * 0.12f, BlurMaskFilter.Blur.NORMAL)
+                pat.color = Color.argb(200, 255, 40, 60); c.drawCircle(cx - r * 0.45f, cy + r * 0.35f, r * 0.28f, pat)
+                pat.color = Color.argb(200, 40, 140, 255); c.drawCircle(cx + r * 0.45f, cy - r * 0.35f, r * 0.28f, pat)
+                pat.color = Color.argb(140, 230, 190, 255); c.drawCircle(cx, cy, r * 0.42f, pat)
+                pat.maskFilter = null
+            }
+            "infinity" -> {
+                // Rings that get closer and closer together (never quite reaching the middle).
+                patStroke.color = Color.argb(150, 255, 255, 255)
+                var rr = r * 0.95f
+                var w = 1.6f * d
+                while (rr > r * 0.2f) { patStroke.strokeWidth = w; c.drawCircle(cx, cy, rr, patStroke); rr *= 0.78f; w *= 0.85f }
+            }
+            "domain" -> {
+                // A black void with a ring of light and specks of stars.
+                pat.shader = RadialGradient(cx, cy, r, intArrayOf(Color.rgb(0, 0, 0), Color.rgb(20, 10, 50), Color.rgb(110, 60, 200)),
+                    floatArrayOf(0f, 0.7f, 1f), Shader.TileMode.CLAMP)
+                c.drawCircle(cx, cy, r, pat); pat.shader = null
+                patStroke.color = Color.WHITE; patStroke.strokeWidth = 1.4f * d
+                patStroke.maskFilter = BlurMaskFilter(2 * d, BlurMaskFilter.Blur.SOLID)
+                c.drawCircle(cx, cy, r * 0.82f, patStroke); patStroke.maskFilter = null
+                pat.color = Color.argb(230, 255, 255, 255)
+                for (i in 0 until 14) {
+                    val a = i * 2.39996
+                    val rr = r * (0.2f + (i % 5) * 0.12f)
+                    c.drawCircle(cx + (rr * cos(a)).toFloat(), cy + (rr * sin(a)).toFloat(), (0.6f + (i % 3) * 0.4f) * d, pat)
+                }
+            }
+            "blackflash" -> {
+                // Jagged red-black sparks.
+                patStroke.strokeWidth = 2.2f * d
+                for ((k, a0) in listOf(0.3, 2.4, 4.3).withIndex()) {
+                    patPath.reset()
+                    var x = cx + (r * 0.95f * cos(a0)).toFloat(); var y = cy + (r * 0.95f * sin(a0)).toFloat()
+                    patPath.moveTo(x, y)
+                    for (j in 1..4) {
+                        val t = 0.95f - j * 0.17f
+                        val a = a0 + (if (j % 2 == 0) 0.35 else -0.35)
+                        x = cx + (r * t * cos(a)).toFloat(); y = cy + (r * t * sin(a)).toFloat()
+                        patPath.lineTo(x, y)
+                    }
+                    patStroke.color = if (k == 1) Color.rgb(20, 0, 0) else Color.rgb(255, 40, 40)
+                    patStroke.maskFilter = BlurMaskFilter(2.5f * d, BlurMaskFilter.Blur.SOLID)
+                    c.drawPath(patPath, patStroke)
+                }
+                patStroke.maskFilter = null
+            }
+            "flames" -> {
+                // Wisps rising around the edge.
+                pat.maskFilter = BlurMaskFilter(r * 0.1f, BlurMaskFilter.Blur.NORMAL)
+                for (i in 0 until 7) {
+                    val a = Math.PI * (0.15 + i * 0.1)
+                    val x = cx + (r * 0.75f * cos(a)).toFloat()
+                    val y = cy + (r * 0.65f * sin(a)).toFloat()
+                    pat.color = if (i % 2 == 0) Color.argb(170, 120, 80, 255) else Color.argb(150, 60, 140, 255)
+                    c.drawOval(RectF(x - r * 0.12f, y - r * 0.35f, x + r * 0.12f, y + r * 0.05f), pat)
+                }
+                pat.maskFilter = null
+            }
+            "bigshot" -> {
+                // Diagonal sale stripes and a sparkle.
+                c.save(); c.clipPath(shapePath(cx, cy, r))
+                patStroke.color = Color.argb(70, 255, 255, 255); patStroke.strokeWidth = r * 0.12f
+                var o = -r * 2
+                while (o < r * 2) { c.drawLine(cx + o - r, cy + r, cx + o + r, cy - r, patStroke); o += r * 0.38f }
+                c.restore()
+                drawSparkle(c, cx + r * 0.55f, cy - r * 0.5f, r * 0.22f, Color.WHITE)
+            }
+            "suits" -> {
+                // Card suits around the edge.
+                text.textSize = r * 0.34f
+                val suits = listOf("♠" to Color.WHITE, "♥" to Color.rgb(240, 50, 70), "♣" to Color.WHITE, "♦" to Color.rgb(240, 50, 70))
+                for ((i, sv) in suits.withIndex()) {
+                    val a = Math.toRadians(-90.0 + i * 90)
+                    text.color = sv.second
+                    c.drawText(sv.first, cx + (r * 0.68f * cos(a)).toFloat(), cy + (r * 0.68f * sin(a)).toFloat() - (text.ascent() + text.descent()) / 2, text)
+                }
+            }
+            "fountain" -> {
+                // A white beam of light straight up, with specks around it.
+                pat.shader = LinearGradient(cx - r * 0.18f, 0f, cx + r * 0.18f, 0f,
+                    intArrayOf(Color.argb(0, 255, 255, 255), Color.argb(230, 255, 255, 255), Color.argb(0, 255, 255, 255)),
+                    null, Shader.TileMode.CLAMP)
+                c.save(); c.clipPath(shapePath(cx, cy, r))
+                c.drawRect(cx - r * 0.18f, cy - r, cx + r * 0.18f, cy + r, pat)
+                c.restore(); pat.shader = null
+                pat.color = Color.argb(200, 255, 255, 255)
+                for ((fx, fy) in listOf(-0.5f to -0.3f, 0.45f to 0.2f, -0.35f to 0.5f, 0.55f to -0.45f, 0.3f to 0.65f))
+                    c.drawCircle(cx + fx * r, cy + fy * r, 1.1f * d, pat)
+            }
+            "coin" -> {
+                // An embossed rim.
+                patStroke.color = Color.argb(150, 255, 245, 200); patStroke.strokeWidth = 2 * d
+                c.drawCircle(cx, cy, r * 0.82f, patStroke)
+                patStroke.color = Color.argb(90, 120, 70, 0); patStroke.strokeWidth = 1.2f * d
+                c.drawCircle(cx, cy, r * 0.74f, patStroke)
+            }
+        }
+        pat.shader = null; pat.maskFilter = null
     }
 
     private val eyePath = Path()
@@ -224,6 +377,7 @@ class BubbleView(context: Context) : View(context) {
                 c.drawCircle(cx + fx * r, cy + fy * r, fs * d, iconFill)
             }
         }
+        if (state == State.IDLE) drawPattern(c, cx, cy, r)
         if (moving) {
             ring.color = Color.WHITE
             ring.strokeWidth = 2.5f * d
@@ -285,6 +439,8 @@ class BubbleView(context: Context) : View(context) {
         }
 
         if (skin.pattern == "eye") { drawEye(c, cx, cy, r); return }
+        if (skin.pattern == "savepoint") { drawSparkle(c, cx, cy, r * 0.62f, Color.rgb(255, 225, 70)); return }
+        if (skin.pattern == "soul") { drawHeart(c, cx, cy + r * 0.05f, r * 0.5f, Color.rgb(255, 20, 30)); return }
 
         // Microphone icon.
         icon.strokeWidth = 2.4f * s

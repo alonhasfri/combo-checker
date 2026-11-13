@@ -84,5 +84,5 @@ object Royal {
         Regex("(?i)shakespear|royal|medieval|elizabethan|old english|1500|fifteen hundred|monarch").containsMatchIn(instructionOrPersona)
 
     /** What the AI is told for "make me sound like …". */
-    fun instruction(who: String) = if (wanted(who)) AI else "Make me sound like $who"
+    fun instruction(who: String) = if (wanted(who)) AI else Characters.instruction(who)
 }

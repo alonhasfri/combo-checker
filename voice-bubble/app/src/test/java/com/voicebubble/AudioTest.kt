@@ -212,3 +212,13 @@ class BrokenTextTest {
         assertEquals(false, looksBroken("ok"))
     }
 }
+
+class CharactersTest {
+    @Test fun guides() {
+        assertEquals(true, Characters.guideFor("Spamton")!!.contains("BIG SHOT"))
+        assertEquals(true, Characters.guideFor("Rouxls Kaard")!!.contains("Worm"))
+        assertEquals(true, Characters.guideFor("flowey")!!.contains("Howdy"))
+        assertNull(Characters.guideFor("a pirate"))
+        assertEquals("Make me sound like a pirate", Characters.instruction("a pirate"))
+    }
+}

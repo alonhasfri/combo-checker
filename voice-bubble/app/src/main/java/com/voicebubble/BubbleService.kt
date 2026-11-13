@@ -1073,12 +1073,19 @@ class BubbleService : Service() {
             fresh?.let { deliver(it) }   // don't lose what you said
             return
         }
-        aiJob({ Ai.rewrite(this, text, if (Royal.wanted(instruction)) Royal.AI else instruction, limit) }, onFail = { fresh?.let { deliver(it, limit) } }) { out ->
+        aiJob({ Ai.rewrite(this, text, instructionFor(instruction), limit) }, onFail = { fresh?.let { deliver(it, limit) } }) { out ->
             if (fresh != null) { deliver(out, limit); return@aiJob }
             lastText = out
             if (InsertService.instance?.replaceLast(out) == true) { buzz(15); toast("Rewritten ✓"); showUndo() }
             else { copyOut(out); toast("Rewritten text copied: paste it over the old one") }
         }
+    }
+
+    /** "Make me sound like Spamton" gets Spamton's full guide; the royal style its own; anything else as said. */
+    private fun instructionFor(instruction: String): String {
+        if (Royal.wanted(instruction)) return Royal.AI
+        val who = Regex("(?i)^make me sound like\\s+(.+)$").find(instruction.trim())?.groupValues?.get(1)
+        return if (who != null && Characters.guideFor(who) != null) Characters.instruction(who) else instruction
     }
 
     /** "reply": reads the chat on screen and offers 3 replies to tap. */
