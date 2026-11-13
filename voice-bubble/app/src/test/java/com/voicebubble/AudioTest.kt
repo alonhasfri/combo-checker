@@ -275,3 +275,14 @@ class BatchOneTest {
         assertEquals(true, Characters.instruction("Spamton + Sans").contains("mix of Spamton and Sans"))
     }
 }
+
+class SkinCodeTest {
+    @Test fun roundTrip() {
+        val spec = org.json.JSONObject().put("background", org.json.JSONArray().put("#FF8800")).put("shapes", org.json.JSONArray())
+        val code = SkinArt.codeFor("Pizza", spec)
+        assertEquals(true, code.startsWith("VBSKIN:"))
+        val back = SkinArt.unpack("Here's my skin: $code".substringAfter("Here's my skin: "))!!
+        assertEquals("Pizza", back.getString("n"))
+        assertNull(SkinArt.unpack("hello"))
+    }
+}

@@ -160,8 +160,14 @@ class BubbleService : Service() {
     }
 
     /** Skin and caps badge from the current settings. */
+    private var skinApp: String? = null
+
+    /** The skin for the app you're in (its own, if you gave it one), else your usual one. */
+    private fun skinFor(app: String?) = Skins.byId(this, app?.let { Styles.appSkins(this)[it] } ?: prefs.skin)
+
     private fun refreshLook() {
-        view?.skin = Skins.byId(this, prefs.skin)
+        view?.skin = skinFor(skinApp)
+        view?.animated = prefs.animSkins
         view?.caps = prefs.capsLock
         view?.persona = prefs.persona != null
         styleCapsChip()
@@ -420,6 +426,10 @@ class BubbleService : Service() {
                         // The X stays a moment so you can tap it.
                         main.postDelayed(hideClose, 3000)
                     } else if (!held && !slid && !pinched) onTap()
+                    else if (slid && !held && !pinched && !recorder.isRecording && !working &&
+                        e.rawY - downY < -dpx(36) && abs(e.rawY - downY) > abs(e.rawX - downX)) {
+                        showQuickPhrases()   // swiped up
+                    }
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     main.removeCallbacks(hold); v.moving = false; touchDragging = false; updateBubble()
@@ -1211,7 +1221,15 @@ class BubbleService : Service() {
         }.start()
     }
 
-    private fun showReplies(options: List<String>) {
+    /** Swipe up on the bubble: your quick phrases, one tap to type. */
+    private fun showQuickPhrases() {
+        val list = prefs.quickPhrases
+        if (list.isEmpty()) { toast("Add quick phrases in Settings"); return }
+        buzz(20)
+        showReplies(list, "Quick phrases")
+    }
+
+    private fun showReplies(options: List<String>, title: String = "Tap a reply") {
         hideReplies()
         val dm = resources.displayMetrics
         val panel = LinearLayout(this).apply {
@@ -1221,7 +1239,7 @@ class BubbleService : Service() {
         }
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(TextView(this).apply {
-            text = "Tap a reply"; setTextColor(Color.rgb(169, 187, 255)); textSize = 13f; typeface = Typeface.DEFAULT_BOLD
+            text = title; setTextColor(Color.rgb(169, 187, 255)); textSize = 13f; typeface = Typeface.DEFAULT_BOLD
             setPadding(dpx(6), 0, 0, dpx(6))
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         head.addView(TextView(this).apply {
@@ -1238,7 +1256,7 @@ class BubbleService : Service() {
                 background = GradientDrawable().apply { cornerRadius = dpx(14).toFloat(); setColor(Color.rgb(58, 91, 217)) }
                 setOnClickListener {
                     hideReplies()
-                    deliver(o)
+                    deliver(o, Limit.forApp(this@BubbleService, AppDetector.current(this@BubbleService)))
                 }
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dpx(6) })
         }
@@ -1314,6 +1332,11 @@ class BubbleService : Service() {
         val verified = InsertService.isOn || (prefs.keyboardVerified && !prefs.keyboardBroken)
         val show = !prefs.onlyWithKeyboard || !verified || keyboardOpen || busy
         val vis = if (show) View.VISIBLE else View.GONE
+        if (vis == View.VISIBLE && v.visibility != vis && Styles.appSkins(this).isNotEmpty()) {
+            // Just appeared: wear this app's skin, if it has one.
+            val app = AppDetector.current(this)
+            if (app != skinApp) { skinApp = app; v.skin = skinFor(app) }
+        }
         if (v.visibility != vis) v.visibility = vis
         liveView?.visibility = vis
 

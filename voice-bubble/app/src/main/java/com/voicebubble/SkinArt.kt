@@ -106,6 +106,64 @@ Shapes (colours are "#RRGGBB" or "#AARRGGBB"; add "stroke": width to draw only t
         return id
     }
 
+    // ---------------- sharing ----------------
+
+    private const val PREFIX = "VBSKIN:"
+
+    private fun pack(o: JSONObject): String {
+        val bytes = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(bytes).use { it.write(o.toString().toByteArray()) }
+        return PREFIX + java.util.Base64.getEncoder().encodeToString(bytes.toByteArray())
+    }
+
+    /** Reads a skin code back into its JSON; null when it isn't one. */
+    fun unpack(code: String): JSONObject? = try {
+        val body = code.trim().substringAfter(PREFIX, "").filter { !it.isWhitespace() }
+        if (body.isEmpty()) null else {
+            val raw = java.util.zip.GZIPInputStream(java.util.Base64.getDecoder().decode(body).inputStream()).use { it.readBytes() }
+            JSONObject(String(raw))
+        }
+    } catch (e: Exception) { null }
+
+    /** A code for one of your skins, to paste to a friend (pictures are made small so the code stays short). */
+    fun shareCode(c: Context, id: String): String? {
+        val cs = list(c).firstOrNull { it.id == id } ?: return null
+        val o = JSONObject().put("v", 1).put("n", cs.title).put("t", cs.kind)
+        when (cs.kind) {
+            "ai" -> o.put("s", cs.spec ?: return null)
+            "image" -> {
+                val bmp = BitmapFactory.decodeFile(imageFile(c, id).path) ?: return null
+                val small = Bitmap.createScaledBitmap(bmp, 128, 128, true)
+                val out = java.io.ByteArrayOutputStream()
+                small.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                o.put("img", java.util.Base64.getEncoder().encodeToString(out.toByteArray()))
+            }
+            else -> return null
+        }
+        return pack(o)
+    }
+
+    /** Adds the skin in a code you were sent. Returns its id, or null when the code doesn't work. */
+    fun importCode(c: Context, code: String): String? {
+        val o = unpack(code) ?: return null
+        val name = o.optString("n").take(24).ifEmpty { "Shared skin" }
+        return when (o.optString("t")) {
+            "ai" -> o.optJSONObject("s")?.let { spec -> addDesign(c, spec.put("name", name)) }
+            "image" -> {
+                val bytes = try { java.util.Base64.getDecoder().decode(o.optString("img")) } catch (e: Exception) { return null }
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+                val id = "pic_" + System.currentTimeMillis()
+                imageFile(c, id).outputStream().use { Bitmap.createScaledBitmap(bmp, 320, 320, true).compress(Bitmap.CompressFormat.PNG, 100, it) }
+                save(c, list(c) + Custom(id, name, "image", null))
+                id
+            }
+            else -> null
+        }
+    }
+
+    /** For tests: a skin code made straight from a design. */
+    fun codeFor(name: String, spec: JSONObject): String = pack(JSONObject().put("v", 1).put("n", name).put("t", "ai").put("s", spec))
+
     // ---------------- drawing ----------------
 
     fun color(v: Any?, fallback: Int): Int = try {

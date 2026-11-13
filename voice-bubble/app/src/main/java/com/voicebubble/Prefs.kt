@@ -147,6 +147,14 @@ class Prefs(private val ctx: Context) {
     var aiLength: String
         get() = p.getString("aiLength", "")!!
         set(v) = p.edit().putString("aiLength", v).apply()
+    /** Swipe up on the bubble for these: one tap types them. */
+    var quickPhrases: List<String>
+        get() = p.getString("quickPhrases", "gg\nbrb\none sec\ntrade?\nlol\nty!\nomw\ngg ez")!!.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        set(v) = p.edit().putString("quickPhrases", v.joinToString("\n")).apply()
+    /** Themed skins move (rings spin, stars twinkle, the soul beats). */
+    var animSkins: Boolean
+        get() = p.getBoolean("animSkins", true)
+        set(v) = p.edit().putBoolean("animSkins", v).apply()
     /** Characters with an instant version (Spamton, Papyrus…) done on the phone, no AI wait. */
     var instantChars: Boolean
         get() = p.getBoolean("instantChars", false)

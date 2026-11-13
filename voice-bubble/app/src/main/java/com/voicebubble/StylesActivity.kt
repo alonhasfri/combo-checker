@@ -86,9 +86,11 @@ class StylesActivity : Screen() {
         val limits = Styles.appLimits(this)
         // Roblox is listed when it's on your phone, since it gets 200 characters by itself.
         val roblox = listOfNotNull(Limit.ROBLOX.takeIf { installed(it) })
-        val rows = (styles.keys + langs.keys + limits.keys + roblox).distinct().map { pkg ->
+        val skins = Styles.appSkins(this)
+        val rows = (styles.keys + langs.keys + limits.keys + skins.keys + roblox).distinct().map { pkg ->
             val parts = listOfNotNull(styles[pkg]?.title?.trimEnd('.', '!'),
-                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code })
+                langs[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code },
+                skins[pkg]?.let { Skins.byId(this, it).title })
             Ui.row(this, R.drawable.ui_layout, "teal", appName(pkg), value = parts.joinToString(" · ").ifEmpty { null },
                 sub = "Length limit: " + limitLabel(pkg)) { appOptions(pkg) }
         }.toMutableList<android.view.View>()
@@ -136,14 +138,27 @@ class StylesActivity : Screen() {
     private fun appOptions(pkg: String) {
         val style = Styles.appStyles(this)[pkg]?.title?.trimEnd('.', '!') ?: "same as its category"
         val lang = Styles.appLangs(this)[pkg]?.let { code -> Langs.all.firstOrNull { it.first == code }?.second ?: code } ?: "same as everywhere"
+        val skin = Styles.appSkins(this)[pkg]?.let { Skins.byId(this, it).title } ?: "same as everywhere"
         Ui.dialog(this).setTitle(appName(pkg)).setItems(arrayOf("Style: $style", "Language: $lang",
-            "Length limit: ${limitLabel(pkg)}", "Remove (use the defaults)")) { _, i ->
+            "Length limit: ${limitLabel(pkg)}", "Bubble skin: $skin", "Remove (use the defaults)")) { _, i ->
             when (i) {
                 0 -> pickStyle(pkg)
                 1 -> pickLang(pkg)
                 2 -> pickLimit(this, pkg) { render() }
-                else -> { Styles.setAppStyle(this, pkg, null); Styles.setAppLang(this, pkg, null); Styles.setAppLimit(this, pkg, null); render() }
+                3 -> pickSkinFor(pkg)
+                else -> { Styles.setAppStyle(this, pkg, null); Styles.setAppLang(this, pkg, null); Styles.setAppLimit(this, pkg, null)
+                    Styles.setAppSkin(this, pkg, null); render() }
             }
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** The bubble's skin while you're in this app. */
+    private fun pickSkinFor(pkg: String) {
+        val all = Skins.all(this)
+        val names = (listOf("Same as everywhere") + all.map { it.title }).toTypedArray()
+        Ui.dialog(this).setTitle("Bubble skin in ${appName(pkg)}").setItems(names) { _, i ->
+            Styles.setAppSkin(this, pkg, if (i == 0) null else all[i - 1].id)
+            render()
         }.setNegativeButton("Cancel", null).show()
     }
 

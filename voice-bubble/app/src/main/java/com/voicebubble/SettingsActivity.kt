@@ -16,6 +16,10 @@ class SettingsActivity : Screen() {
         page.addView(Ui.sectionTitle(this, "Floating microphone"))
         page.addView(Ui.group(this, listOf(
             Ui.row(this, R.drawable.ui_star, "gold", "Bubble skin", value = Skins.byId(this, prefs.skin).title) { pickSkin() },
+            Ui.switchRow(this, R.drawable.ui_spark, "purple", "Animated skins",
+                "Themed skins move: rings spin, stars twinkle, the soul beats", prefs.animSkins) { on -> prefs.animSkins = on; refreshBubble() },
+            Ui.row(this, R.drawable.ui_zap, "orange", "Quick phrases", value = "${prefs.quickPhrases.size}",
+                sub = "Swipe up on the bubble, tap one to type it") { editQuickPhrases() },
             Ui.row(this, R.drawable.ui_circle, "purple", "Bubble size", value = "${prefs.bubbleSizeDp} dp",
                 sub = "Bigger or smaller bubble") {
                 val sizes = listOf(52 to "Small", 72 to "Medium", 92 to "Large", 112 to "Extra large")
@@ -225,12 +229,15 @@ class SettingsActivity : Screen() {
             startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), PICK_SKIN)
         }
         cell(actionTile(R.drawable.ui_wand, "purple"), "Make with AI", false) { designSkin() }
+        cell(actionTile(R.drawable.ui_download, "green"), "Paste a code", false) { pasteSkinCode() }
         Skins.all(this).forEach { sk ->
             val delete: (() -> Unit)? = if (sk.custom) ({
-                Ui.dialog(this).setTitle("Delete \"${sk.title}\"?").setPositiveButton("Delete") { _, _ ->
-                    SkinArt.delete(this, sk.id)
-                    if (prefs.skin == sk.id) prefs.skin = "classic"
-                    refreshBubble(); render()
+                Ui.dialog(this).setTitle(sk.title).setItems(arrayOf("Share with a friend", "Delete")) { _, which ->
+                    if (which == 0) shareSkin(sk.id) else {
+                        SkinArt.delete(this, sk.id)
+                        if (prefs.skin == sk.id) prefs.skin = "classic"
+                        refreshBubble(); render()
+                    }
                 }.setNegativeButton("Cancel", null).show()
                 Unit
             }) else null
@@ -240,12 +247,46 @@ class SettingsActivity : Screen() {
         }
         val box = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            addView(Ui.note(this@SettingsActivity, "Hold one of your own skins to delete it.").apply { setPaddingRelative(dp(22), dp(4), dp(22), 0) })
+            addView(Ui.note(this@SettingsActivity, "Hold one of your own skins to share or delete it.").apply { setPaddingRelative(dp(22), dp(4), dp(22), 0) })
             addView(grid)
         }
         dialog = Ui.dialog(this).setTitle("Bubble skin").setView(android.widget.ScrollView(this).apply { addView(box) })
             .setNegativeButton("Cancel", null).create()
         dialog.show()
+    }
+
+    private fun editQuickPhrases() {
+        val prefs = Prefs(this)
+        val f = Ui.field(this, "One per line, e.g. gg, brb, trade?", multiLine = true).apply { setText(prefs.quickPhrases.joinToString("\n")) }
+        Ui.dialog(this).setTitle("Quick phrases").setMessage("One per line. Swipe up on the bubble to use them.")
+            .setView(Ui.padded(this, f)).setPositiveButton("Save") { _, _ ->
+                prefs.quickPhrases = f.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }.take(12)
+                render()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** Your skin as a code: copied, and offered to share (WhatsApp, Discord…). */
+    private fun shareSkin(id: String) {
+        val code = SkinArt.shareCode(this, id) ?: run { toast("Couldn't make a code for that skin"); return }
+        getSystemService(android.content.ClipboardManager::class.java)
+            .setPrimaryClip(android.content.ClipData.newPlainText("Voice Bubble skin", code))
+        toast("Skin code copied")
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,
+            "My Voice Bubble skin! In Voice Bubble: Settings → Bubble skin → Paste a code\n\n$code"), "Share skin"))
+    }
+
+    /** A friend's skin code: paste it (or it's taken from what you copied). */
+    private fun pasteSkinCode() {
+        val f = Ui.field(this, "Paste the skin code (starts with VBSKIN:)", multiLine = true)
+        Ui.dialog(this).setTitle("Paste a skin code").setView(Ui.padded(this, f)).setPositiveButton("Add") { _, _ ->
+            val text = f.text.toString()
+            val code = Regex("VBSKIN:[A-Za-z0-9+/=\\s]+").find(text)?.value ?: text
+            val id = runCatching { SkinArt.importCode(this, code) }.getOrNull()
+            if (id == null) { toast("That code doesn't work. Copy the whole thing and try again"); return@setPositiveButton }
+            Prefs(this).skin = id
+            refreshBubble(); render()
+            toast("Added \"${Skins.byId(this, id).title}\" and put it on your bubble")
+        }.setNegativeButton("Cancel", null).show()
     }
 
     /** Describe a skin; the AI draws it. */

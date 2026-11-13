@@ -97,6 +97,19 @@ object Styles {
 
     // ----- length limit for specific apps (0 = no limit) -----
 
+    /** Your skin for particular apps (package → skin id). */
+    fun appSkins(c: Context): Map<String, String> {
+        val o = try { org.json.JSONObject(sp(c).getString("appSkins", "{}")!!) } catch (e: Exception) { org.json.JSONObject() }
+        return o.keys().asSequence().associateWith { o.getString(it) }
+    }
+
+    fun setAppSkin(c: Context, pkg: String, id: String?) {
+        val o = org.json.JSONObject()
+        appSkins(c).forEach { (k, v) -> if (k != pkg) o.put(k, v) }
+        if (id != null) o.put(pkg, id)
+        sp(c).edit().putString("appSkins", o.toString()).apply()
+    }
+
     fun appLimits(c: Context): Map<String, Int> {
         val o = try { org.json.JSONObject(sp(c).getString("appLimits", "{}")!!) } catch (e: Exception) { org.json.JSONObject() }
         val out = LinkedHashMap<String, Int>()

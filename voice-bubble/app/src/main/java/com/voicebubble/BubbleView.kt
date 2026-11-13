@@ -109,6 +109,15 @@ class BubbleView(context: Context) : View(context) {
     var moving = false
         set(v) { field = v; invalidate() }
     var seconds = 0
+    /** Animated skins move while idle (off = still pictures, a little less battery). */
+    var animated = true
+        set(v) { field = v; invalidate() }
+
+    /** Seconds, for the animations. */
+    private val t get() = (android.os.SystemClock.uptimeMillis() % 3_600_000L) / 1000f
+    private val animatedPatterns = setOf("rainbow", "hollowpurple", "infinity", "domain", "blackflash", "flames", "savepoint",
+        "soul", "galaxy", "bigshot", "fountain", "eye")
+    private fun phase() = if (animated) t else 0f
 
     private val d = resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -215,15 +224,18 @@ class BubbleView(context: Context) : View(context) {
             "hollowpurple" -> {
                 // A red and a blue orb colliding into purple.
                 pat.maskFilter = BlurMaskFilter(r * 0.12f, BlurMaskFilter.Blur.NORMAL)
-                pat.color = Color.argb(200, 255, 40, 60); c.drawCircle(cx - r * 0.45f, cy + r * 0.35f, r * 0.28f, pat)
-                pat.color = Color.argb(200, 40, 140, 255); c.drawCircle(cx + r * 0.45f, cy - r * 0.35f, r * 0.28f, pat)
+                val oa = -0.66 + phase() * 1.4
+                val orb = r * 0.57f
+                pat.color = Color.argb(200, 255, 40, 60); c.drawCircle(cx - (orb * cos(oa)).toFloat(), cy - (orb * sin(oa)).toFloat(), r * 0.28f, pat)
+                pat.color = Color.argb(200, 40, 140, 255); c.drawCircle(cx + (orb * cos(oa)).toFloat(), cy + (orb * sin(oa)).toFloat(), r * 0.28f, pat)
                 pat.color = Color.argb(140, 230, 190, 255); c.drawCircle(cx, cy, r * 0.42f, pat)
                 pat.maskFilter = null
             }
             "infinity" -> {
                 // Rings that get closer and closer together (never quite reaching the middle).
                 patStroke.color = Color.argb(150, 255, 255, 255)
-                var rr = r * 0.95f
+                val f = (phase() * 0.6f) % 1f
+                var rr = r * 0.95f * Math.pow(0.78, f.toDouble()).toFloat()
                 var w = 1.6f * d
                 while (rr > r * 0.2f) { patStroke.strokeWidth = w; c.drawCircle(cx, cy, rr, patStroke); rr *= 0.78f; w *= 0.85f }
             }
@@ -239,7 +251,9 @@ class BubbleView(context: Context) : View(context) {
                 for (i in 0 until 14) {
                     val a = i * 2.39996
                     val rr = r * (0.2f + (i % 5) * 0.12f)
-                    c.drawCircle(cx + (rr * cos(a)).toFloat(), cy + (rr * sin(a)).toFloat(), (0.6f + (i % 3) * 0.4f) * d, pat)
+                    val tw = if (animated) 0.35f + 0.65f * kotlin.math.abs(sin(phase() * 1.7 + i * 1.3)).toFloat() else 0.9f
+                    pat.color = Color.argb((255 * tw).toInt(), 255, 255, 255)
+                    c.drawCircle(cx + (rr * cos(a + phase() * 0.15)).toFloat(), cy + (rr * sin(a + phase() * 0.15)).toFloat(), (0.6f + (i % 3) * 0.4f) * d, pat)
                 }
             }
             "blackflash" -> {
@@ -255,6 +269,8 @@ class BubbleView(context: Context) : View(context) {
                         x = cx + (r * t * cos(a)).toFloat(); y = cy + (r * t * sin(a)).toFloat()
                         patPath.lineTo(x, y)
                     }
+                    val on = !animated || sin(phase() * 11.0 + k * 2.1) > -0.4
+                    if (!on) continue
                     patStroke.color = if (k == 1) Color.rgb(20, 0, 0) else Color.rgb(255, 40, 40)
                     patStroke.maskFilter = BlurMaskFilter(2.5f * d, BlurMaskFilter.Blur.SOLID)
                     c.drawPath(patPath, patStroke)
@@ -267,7 +283,7 @@ class BubbleView(context: Context) : View(context) {
                 for (i in 0 until 7) {
                     val a = Math.PI * (0.15 + i * 0.1)
                     val x = cx + (r * 0.75f * cos(a)).toFloat()
-                    val y = cy + (r * 0.65f * sin(a)).toFloat()
+                    val y = cy + (r * 0.65f * sin(a)).toFloat() - (if (animated) (r * 0.06f * sin(phase() * 4.0 + i)).toFloat() else 0f)
                     pat.color = if (i % 2 == 0) Color.argb(170, 120, 80, 255) else Color.argb(150, 60, 140, 255)
                     c.drawOval(RectF(x - r * 0.12f, y - r * 0.35f, x + r * 0.12f, y + r * 0.05f), pat)
                 }
@@ -277,7 +293,7 @@ class BubbleView(context: Context) : View(context) {
                 // Diagonal sale stripes and a sparkle.
                 c.save(); c.clipPath(shapePath(cx, cy, r))
                 patStroke.color = Color.argb(70, 255, 255, 255); patStroke.strokeWidth = r * 0.12f
-                var o = -r * 2
+                var o = -r * 2 + (phase() * r * 0.3f) % (r * 0.38f)
                 while (o < r * 2) { c.drawLine(cx + o - r, cy + r, cx + o + r, cy - r, patStroke); o += r * 0.38f }
                 c.restore()
                 drawSparkle(c, cx + r * 0.55f, cy - r * 0.5f, r * 0.22f, Color.WHITE)
@@ -301,8 +317,11 @@ class BubbleView(context: Context) : View(context) {
                 c.drawRect(cx - r * 0.18f, cy - r, cx + r * 0.18f, cy + r, pat)
                 c.restore(); pat.shader = null
                 pat.color = Color.argb(200, 255, 255, 255)
-                for ((fx, fy) in listOf(-0.5f to -0.3f, 0.45f to 0.2f, -0.35f to 0.5f, 0.55f to -0.45f, 0.3f to 0.65f))
-                    c.drawCircle(cx + fx * r, cy + fy * r, 1.1f * d, pat)
+                for ((fx, fy) in listOf(-0.5f to -0.3f, 0.45f to 0.2f, -0.35f to 0.5f, 0.55f to -0.45f, 0.3f to 0.65f)) {
+                    // Drift upwards and wrap around.
+                    val y = ((fy + 1f - (phase() * 0.25f + fx) % 2f + 2f) % 2f) - 1f
+                    c.drawCircle(cx + fx * r, cy + y * r * 0.9f, 1.1f * d, pat)
+                }
             }
             "coin" -> {
                 // An embossed rim.
@@ -345,7 +364,7 @@ class BubbleView(context: Context) : View(context) {
         lash.color = Color.argb(150, 210, 250, 255)
         lash.strokeWidth = 0.8f * d
         for (i in 0 until 16) {
-            val a = Math.toRadians(i * 22.5)
+            val a = Math.toRadians(i * 22.5 + phase() * 25)   // the iris slowly turns
             c.drawLine(cx + (ir * 0.32f * cos(a)).toFloat(), cy + (ir * 0.32f * sin(a)).toFloat(),
                 cx + (ir * 0.9f * cos(a)).toFloat(), cy + (ir * 0.9f * sin(a)).toFloat(), lash)
         }
@@ -386,6 +405,7 @@ class BubbleView(context: Context) : View(context) {
                 skin.idle2?.let { fill.shader = LinearGradient(cx - r, cy - r, cx + r, cy + r, skin.idle, it, Shader.TileMode.CLAMP) }
                 if (skin.pattern == "rainbow") fill.shader = SweepGradient(cx, cy, intArrayOf(Color.rgb(255, 70, 70),
                     Color.rgb(255, 190, 40), Color.rgb(80, 220, 90), Color.rgb(40, 170, 255), Color.rgb(170, 90, 255), Color.rgb(255, 70, 70)), null)
+                    .apply { setLocalMatrix(android.graphics.Matrix().apply { setRotate(phase() * 60f, cx, cy) }) }
             }
             State.RECORDING -> fill.color = if (skin.shape == "heart") Color.rgb(255, 40, 60) else Color.rgb(222, 48, 56)
             State.WORKING -> fill.color = Color.rgb(106, 63, 217)
@@ -412,8 +432,9 @@ class BubbleView(context: Context) : View(context) {
             // A few stars.
             for ((fx, fy, fs) in listOf(Triple(-0.5f, -0.35f, 1.4f), Triple(0.45f, -0.5f, 1f), Triple(0.55f, 0.3f, 1.6f),
                     Triple(-0.3f, 0.55f, 1f), Triple(0.1f, -0.7f, 0.8f), Triple(-0.65f, 0.15f, 0.9f), Triple(0.25f, 0.62f, 0.8f))) {
-                iconFill.color = Color.argb(220, 255, 255, 255)
-                c.drawCircle(cx + fx * r, cy + fy * r, fs * d, iconFill)
+                val tw = if (animated) (0.45f + 0.55f * kotlin.math.abs(sin(phase() * 2.2 + fx * 7 + fy * 5)).toFloat()) else 0.85f
+                iconFill.color = Color.argb((255 * tw).toInt(), 255, 255, 255)
+                c.drawCircle(cx + fx * r, cy + fy * r, fs * d * (0.7f + 0.5f * tw), iconFill)
             }
         }
         if (state == State.IDLE) drawPattern(c, cx, cy, r)
@@ -477,10 +498,11 @@ class BubbleView(context: Context) : View(context) {
             return
         }
 
-        if (skin.pattern == "eye") { drawEye(c, cx, cy, r); return }
+        if (skin.pattern == "eye") { drawEye(c, cx, cy, r); keepMoving(); return }
         if (!skin.showMic) return
-        if (skin.pattern == "savepoint") { drawSparkle(c, cx, cy, r * 0.62f, Color.rgb(255, 225, 70)); return }
-        if (skin.pattern == "soul") { drawHeart(c, cx, cy + r * 0.05f, r * 0.5f, Color.rgb(255, 20, 30)); return }
+        val pulse = if (animated) 1f + 0.08f * sin(phase() * 4.0).toFloat() else 1f
+        if (skin.pattern == "savepoint") { drawSparkle(c, cx, cy, r * 0.62f * pulse, Color.rgb(255, 225, 70)); keepMoving(); return }
+        if (skin.pattern == "soul") { drawHeart(c, cx, cy + r * 0.05f, r * 0.5f * pulse, Color.rgb(255, 20, 30)); keepMoving(); return }
 
         // Microphone icon.
         icon.strokeWidth = 2.4f * s
@@ -488,5 +510,11 @@ class BubbleView(context: Context) : View(context) {
         c.drawRoundRect(RectF(cx - 5 * s, y - 11 * s, cx + 5 * s, y + 3 * s), 5 * s, 5 * s, iconFill)
         c.drawArc(RectF(cx - 9 * s, y - 7 * s, cx + 9 * s, y + 7.5f * s), 0f, 180f, false, icon)
         c.drawLine(cx, y + 7.5f * s, cx, y + 11.5f * s, icon)
+        keepMoving()
+    }
+
+    /** Animated skin, idle and on screen: draw the next frame (about 30 a second). */
+    private fun keepMoving() {
+        if (animated && state == State.IDLE && skin.pattern in animatedPatterns && isShown) postInvalidateDelayed(33)
     }
 }
