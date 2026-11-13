@@ -174,6 +174,15 @@ object Ai {
         return if (out.isBlank() || ratio < 0.7f || ratio > 1.4f) text else out
     }
 
+    /** Writes a voice guide for a character you add. */
+    fun characterGuide(c: Context, name: String, notes: String): String = ask(c, Characters.GUIDE_PROMPT,
+        "Character: $name" + (if (notes.isNotBlank()) "\nNotes from me: $notes" else ""), longAnswer = true)
+
+    /** Shortens a message so it fits in [max] characters, as one message, keeping its point and voice. */
+    fun shorten(c: Context, text: String, max: Int): String =
+        rewrite(c, text, "Shorten it so the whole thing fits in $max characters: keep the main point, the voice and any " +
+            "names; drop extra words and side details. One message, not several.", max)
+
     /** Designs a bubble skin from a description: a small drawing as JSON (see [SkinArt]). */
     fun designSkin(c: Context, description: String): String = ask(c, SkinArt.AI_FORMAT, "Design a bubble skin: $description", longAnswer = true)
 

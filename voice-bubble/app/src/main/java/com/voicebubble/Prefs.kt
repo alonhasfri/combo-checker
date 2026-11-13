@@ -147,6 +147,14 @@ class Prefs(private val ctx: Context) {
     var aiLength: String
         get() = p.getString("aiLength", "")!!
         set(v) = p.edit().putString("aiLength", v).apply()
+    /** Characters with an instant version (Spamton, Papyrus…) done on the phone, no AI wait. */
+    var instantChars: Boolean
+        get() = p.getBoolean("instantChars", false)
+        set(v) = p.edit().putBoolean("instantChars", v).apply()
+    /** In Roblox, swap words its chat filter would hide. */
+    var robloxSafe: Boolean
+        get() = p.getBoolean("robloxSafe", true)
+        set(v) = p.edit().putBoolean("robloxSafe", v).apply()
     /** After you talk, the AI fixes misheard words from the context (needs an AI key). */
     var aiFix: Boolean
         get() = p.getBoolean("aiFix", false)

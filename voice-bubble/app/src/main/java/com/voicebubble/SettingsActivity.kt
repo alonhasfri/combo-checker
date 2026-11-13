@@ -73,6 +73,11 @@ class SettingsActivity : Screen() {
                 value = if (Ai.hasKey(this)) Ai.provider(this) + " ✓" else "Not set") { aiKeyDialog() },
             Ui.switchRow(this, R.drawable.ui_book, "purple", "Instant Royal English",
                 "1500s royal talk on the phone with no AI: no waiting, but simpler", prefs.instantRoyal) { on -> prefs.instantRoyal = on },
+            Ui.switchRow(this, R.drawable.ui_zap, "gold", "Instant characters",
+                "${Instant.supported.joinToString(", ")}: done on the phone with no AI. No waiting, but simpler",
+                prefs.instantChars) { on -> prefs.instantChars = on },
+            Ui.switchRow(this, R.drawable.ui_target, "green", "Roblox-safe words",
+                "In Roblox, swaps words its chat filter hides (swearing, numbers, other apps' names)", prefs.robloxSafe) { on -> prefs.robloxSafe = on },
             Ui.switchRow(this, R.drawable.ui_zap, "orange", "Fast Claude",
                 "With a Claude key: quicker answers from Claude Haiku 5.5 instead of Claude Opus 5.5", prefs.aiFast) { on -> prefs.aiFast = on },
         )))

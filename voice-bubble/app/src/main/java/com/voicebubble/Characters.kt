@@ -104,15 +104,56 @@ Example: "Can you help me?" → "Hah. You dare ask the King of Curses for help, 
 
     private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z ]"), " ").replace(Regex("\\s+"), " ").trim()
 
-    /** The guide for this character, or null if there isn't one. */
-    fun guideFor(who: String): String? {
+    /** What the AI is told when you make a character: write a guide like the built-in ones. */
+    const val GUIDE_PROMPT = "You write short voice guides for a texting app that rewrites people's messages in a " +
+        "character's voice. Given a character (and maybe notes from the user), write: one line saying who they are and " +
+        "their attitude, then 3 to 5 bullet points (starting with \"- \") on HOW they talk: typical words, grammar, " +
+        "spelling or capital-letter habits, catchphrases, what they call people, and what to avoid. Then one line " +
+        "starting \"Example: \" with an everyday message rewritten in their voice (\"I'll be late\" → \"...\"). " +
+        "Under 120 words. Only the guide, nothing else."
+
+    // ---------------- your own characters ----------------
+
+    private fun sp(c: android.content.Context) = c.getSharedPreferences("characters", android.content.Context.MODE_PRIVATE)
+
+    /** Characters you made: name → guide. */
+    fun custom(c: android.content.Context): Map<String, String> = try {
+        val o = org.json.JSONObject(sp(c).getString("custom", "{}")!!)
+        o.keys().asSequence().associateWith { o.getString(it) }
+    } catch (e: Exception) { emptyMap() }
+
+    fun saveCustom(c: android.content.Context, name: String, guide: String?) {
+        val o = org.json.JSONObject()
+        custom(c).forEach { (k, v) -> if (!k.equals(name, true)) o.put(k, v) }
+        if (guide != null) o.put(name, guide)
+        sp(c).edit().putString("custom", o.toString()).apply()
+    }
+
+    /** The guide for this character (yours first), or null if there isn't one. */
+    fun guideFor(who: String, c: android.content.Context? = null): String? {
+        c?.let { ctx -> custom(ctx).entries.firstOrNull { it.key.equals(who.trim(), true) }?.let { return it.value } }
         val n = norm(who)
         return guides.firstOrNull { g -> g.names.any { n == it || n.startsWith("$it ") } }?.guide?.trim()
     }
 
+    // ---------------- mixing two ----------------
+
+    private val mixRe = Regex("\\s*(?:\\+|&|\\bmixed with\\b|\\bmeets\\b|\\band\\b|\\bx\\b)\\s*", RegexOption.IGNORE_CASE)
+
+    /** "Spamton + Rouxls Kaard", "Gojo and Sans": two (or three) characters at once. */
+    fun parts(who: String): List<String> = who.split(mixRe).map { it.trim() }.filter { it.isNotEmpty() }.take(3)
+    fun isMix(who: String) = parts(who).size >= 2
+
     /** What the AI is told for "make me sound like …": the character's guide when there is one. */
-    fun instruction(who: String): String {
-        val g = guideFor(who) ?: return "Make me sound like $who"
+    fun instruction(who: String, c: android.content.Context? = null): String {
+        if (isMix(who)) {
+            val ps = parts(who)
+            val guides = ps.joinToString("\n\n") { p -> guideFor(p, c) ?: if (Royal.wanted(p)) Royal.AI else "$p: their usual way of talking." }
+            return "Make me sound like a mix of ${ps.joinToString(" and ")}: blend their voices into one, using a few " +
+                "touches from each (their words, habits and catchphrases) in the same message. Still say just what I " +
+                "meant, as a message I'm sending: no extra sentences or story.\n\n$guides"
+        }
+        val g = guideFor(who, c) ?: return "Make me sound like $who"
         return "Make me sound like this character, using the guide for their voice, habits and words. Use a few of " +
             "these touches so it's clearly them, not all of them at once. Still say just what I meant, as a message " +
             "I'm sending: no extra sentences or story. The examples show the voice, not how much to write.\n\n$g"

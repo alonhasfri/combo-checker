@@ -87,7 +87,9 @@ class MainActivity : Screen() {
         page.addView(tryCard())
 
         page.addView(Ui.sectionTitle(this, "Recent"))
-        page.addView(recent())
+        page.addView(Ui.group(this, listOf(Ui.row(this, R.drawable.ui_book, "teal", "Search all history",
+            sub = "Find anything you dictated") { startActivity(Intent(this, HistoryActivity::class.java)) })))
+        page.addView(recent(), Ui.lp(this, 12))
 
         Ui.tabScreen(this, page, "home")
         updateStatusLine()
@@ -317,18 +319,72 @@ class MainActivity : Screen() {
             "a news reporter", "a sports commentator", "a motivational coach", "a robot", "a villain monologue",
             "a fairy tale narrator", "a Gen Z teenager", "a grumpy old man", "an overly polite butler",
         )
-        val items = (listOf("Off") + presets + "Someone else…").toTypedArray()
+        val mine = Characters.custom(this).keys.sorted()
+        val all = mine + presets
+        val items = (listOf("Off", "➕ Make your own character…", "🔀 Mix two characters…") +
+            mine.map { "★ $it" } + presets + "Someone else…").toTypedArray()
         Ui.dialog(this).setTitle("Talk like").setItems(items) { _, i ->
             when {
                 i == 0 -> { prefs.persona = null; render() }
+                i == 1 -> makeCharacter()
+                i == 2 -> mixCharacters(all)
                 i == items.size - 1 -> {
                     val f = Ui.field(this, "e.g. Yoda, a cowboy, my grandma")
                     Ui.dialog(this).setTitle("Talk like…").setView(Ui.padded(this, f))
                         .setPositiveButton("Save") { _, _ -> prefs.persona = f.text.toString(); render() }
                         .setNegativeButton("Cancel", null).show()
                 }
-                else -> { prefs.persona = presets[i - 1]; render() }
+                else -> { prefs.persona = all[i - 3]; render() }
             }
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** Pick two characters to blend into one voice. */
+    private fun mixCharacters(all: List<String>) {
+        val names = all.toTypedArray()
+        val picked = BooleanArray(names.size)
+        Ui.dialog(this).setTitle("Pick two (or three)").setMultiChoiceItems(names, picked) { _, i, on -> picked[i] = on }
+            .setPositiveButton("Mix") { _, _ ->
+                val chosen = names.filterIndexed { i, _ -> picked[i] }
+                if (chosen.size < 2) { toast("Pick at least two"); return@setPositiveButton }
+                Prefs(this).persona = chosen.take(3).joinToString(" + ")
+                render()
+            }.setNegativeButton("Cancel", null).show()
+    }
+
+    /** Your own character: a name and a few notes; the AI writes how they talk (you can edit it). */
+    private fun makeCharacter() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val name = Ui.field(this, "Name, e.g. my friend Sam, Kirby, a dramatic narrator")
+        val notes = Ui.field(this, "How they talk (optional): words they use, attitude…", multiLine = true)
+        box.addView(name, LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP))
+        box.addView(notes, Ui.lp(this, 10))
+        Ui.dialog(this).setTitle("Make a character").setView(Ui.padded(this, box)).setPositiveButton("Make") { _, _ ->
+            val n = name.text.toString().trim()
+            if (n.isEmpty()) return@setPositiveButton
+            val extra = notes.text.toString().trim()
+            if (!Ai.hasKey(this)) {
+                // No AI: your notes are the guide.
+                if (extra.isEmpty()) { toast("Add how they talk, or an AI key to write it for you"); return@setPositiveButton }
+                Characters.saveCustom(this, n, extra); Prefs(this).persona = n; render(); return@setPositiveButton
+            }
+            toast("Writing how $n talks…")
+            val app = applicationContext
+            Thread {
+                val guide = runCatching { Ai.characterGuide(app, n, extra) }.getOrNull()
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    if (guide.isNullOrBlank()) { toast("Couldn't make it this time. Try again"); return@runOnUiThread }
+                    // Show it so you can change anything before saving.
+                    val edit = Ui.field(this, "", multiLine = true).apply { setText(guide) }
+                    Ui.dialog(this).setTitle(n).setView(Ui.padded(this, edit)).setPositiveButton("Save") { _, _ ->
+                        Characters.saveCustom(this, n, edit.text.toString().trim())
+                        Prefs(this).persona = n
+                        render()
+                        toast("Talking like $n")
+                    }.setNegativeButton("Cancel", null).show()
+                }
+            }.start()
         }.setNegativeButton("Cancel", null).show()
     }
 

@@ -49,7 +49,7 @@ object Stats {
             val arr = history(c).toMutableList()
             arr.add(0, Entry(text, System.currentTimeMillis(), app))
             val out = JSONArray()
-            arr.take(50).forEach { out.put(JSONObject().put("t", it.text).put("at", it.time).put("app", it.app ?: "")) }
+            arr.take(500).forEach { out.put(JSONObject().put("t", it.text).put("at", it.time).put("app", it.app ?: "")) }
             p.edit().putString("history", out.toString()).apply()
         }
     }

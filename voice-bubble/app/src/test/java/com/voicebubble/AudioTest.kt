@@ -243,3 +243,35 @@ class KeepsMeaningTest {
         assertEquals(false, Ai.keepsMeaning(said, "Howdy! Golly, gee, you IDIOT. Hee hee hee."))
     }
 }
+
+class BatchOneTest {
+    @Test fun instantCharacters() {
+        val s = Instant.apply("Spamton", "Do you want to get pizza tonight?")!!
+        assertEquals(true, s.contains("[[") && s.startsWith("HEY"))
+        assertEquals("heh. i'm tired, kid.", Instant.apply("Sans", "I'm tired."))
+        assertEquals(true, Instant.apply("Papyrus", "I'm here")!!.contains("THE GREAT PAPYRUS IS HERE"))
+        assertEquals(true, Instant.apply("Rouxls Kaard", "Can you help me")!!.contains("thou"))
+        assertNull(Instant.apply("a pirate", "hello"))
+    }
+
+    @Test fun robloxSafe() {
+        val r = RobloxSafe.clean("You idiot, add me on Discord, I have 25 robux")
+        assertEquals("You silly, add me on the other app, I have twenty five robux", r.text)
+        assertEquals(3, r.changed)
+        assertEquals("Hello class", RobloxSafe.clean("Hello class").text)
+    }
+
+    @Test fun squeezeIsOneMessage() {
+        val long = "I am really just going to say that this is actually a very long message about the game we played today and it keeps going on and on forever."
+        val out = Limit.squeeze(long, 80)
+        assertEquals(true, out.length <= 80)
+        assertEquals(true, out.startsWith("I'm gonna say"))
+    }
+
+    @Test fun mixes() {
+        assertEquals(listOf("Spamton", "Rouxls Kaard"), Characters.parts("Spamton + Rouxls Kaard"))
+        assertEquals(true, Characters.isMix("Gojo and Sans"))
+        assertEquals(false, Characters.isMix("Sherlock Holmes"))
+        assertEquals(true, Characters.instruction("Spamton + Sans").contains("mix of Spamton and Sans"))
+    }
+}

@@ -744,15 +744,19 @@ class BubbleService : Service() {
                 text.split(" ").size >= 3) {
                 text = runCatching { Ai.fixMistakes(this, text!!, Words.prompt(this).trimEnd('.')) }.getOrDefault(text)
             }
-            if (text != null && Royal.wanted(persona) && (prefs.instantRoyal || !Ai.hasKey(this))) {
+            if (text != null && Royal.wanted(persona) && !Characters.isMix(persona!!) && (prefs.instantRoyal || !Ai.hasKey(this))) {
                 text = Royal.apply(text)   // instant, no AI
+            } else if (text != null && Instant.has(persona) && !Characters.isMix(persona!!) && (prefs.instantChars || !Ai.hasKey(this))) {
+                text = Instant.apply(persona!!, text) ?: text   // instant character, no AI
             } else if (text != null && persona != null && Ai.hasKey(this)) {
-                text = try { Ai.rewrite(this, text, Royal.instruction(persona), s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
+                text = try { Ai.rewrite(this, text, Royal.instruction(persona, this), s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (text != null && s.aiTarget != null) {
                 text = try { finishTranslation(s, text, usePre = persona == null) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (caps) text = text?.uppercase()
+            // Roblox: words its filter hides are swapped, and anything too long is shortened into one message.
+            if (text != null) text = finishForApp(s.app, text, s.limit)
             main.post {
                 if (s.token != sessionToken) return@post
                 endSession()
@@ -869,8 +873,9 @@ class BubbleService : Service() {
         deliver(text, s.limit)
     }
 
+    /** Always one message: anything still too long is shortened to fit (never split into two). */
     private fun fitToLimit(text: String, limit: Int?): Pair<String, String?> =
-        if (limit == null) text to null else Limit.fit(text, limit)
+        if (limit == null || text.length <= limit) text to null else Limit.squeeze(text, limit) to null
 
     /** Too long for one message: the rest goes on the clipboard for the next one. */
     private fun copyRest(rest: String, limit: Int?) {
@@ -922,6 +927,17 @@ class BubbleService : Service() {
         main.post {
             offerView?.let { runCatching { wm.removeView(it) } }
             val inDict = Words.dictionary(this).any { it == meant }
+            // The same fix a second time: learned by itself, no need to tap.
+            val seen = getSharedPreferences("learn", MODE_PRIVATE)
+            val key = "fix_" + heard.lowercase() + "→" + meant
+            val times = seen.getInt(key, 0) + 1
+            seen.edit().putInt(key, times).apply()
+            if (times >= 2) {
+                if (!inDict && meant.split(' ').size <= 2) Words.saveDictionary(this, Words.dictionary(this) + meant)
+                Adapt.addFix(this, heard, meant)
+                toast("Learned: \u201c$heard\u201d → \u201c$meant\u201d ✓")
+                return@post
+            }
             val v = TextView(this).apply {
                 text = if (inDict) "Remember \u201c$heard\u201d → \u201c$meant\u201d?  ✓" else "Add \u201c$meant\u201d to your dictionary?  ✓"
                 setTextColor(Color.WHITE)
@@ -1068,6 +1084,15 @@ class BubbleService : Service() {
             else { lastText = out; copyOut(out); toast("Copied: paste it over the old one") }
             return
         }
+        // Instant characters, no AI ("make me sound like Spamton" with no key, or instant characters on).
+        val who = Regex("(?i)^make me sound like\\s+(.+)$").find(instruction.trim())?.groupValues?.get(1)
+        if (who != null && Instant.has(who) && !Characters.isMix(who) && (prefs.instantChars || !Ai.hasKey(this))) {
+            val out = Instant.apply(who, text) ?: text
+            if (fresh != null) deliver(out, limit)
+            else if (InsertService.instance?.replaceLast(out) == true) { lastText = out; buzz(15); showUndo() }
+            else { lastText = out; copyOut(out); toast("Copied: paste it over the old one") }
+            return
+        }
         if (!Ai.hasKey(this)) {
             toast("Rewriting needs an AI key (Settings → AI)")
             fresh?.let { deliver(it) }   // don't lose what you said
@@ -1083,9 +1108,31 @@ class BubbleService : Service() {
 
     /** "Make me sound like Spamton" gets Spamton's full guide; the royal style its own; anything else as said. */
     private fun instructionFor(instruction: String): String {
-        if (Royal.wanted(instruction)) return Royal.AI
         val who = Regex("(?i)^make me sound like\\s+(.+)$").find(instruction.trim())?.groupValues?.get(1)
-        return if (who != null && Characters.guideFor(who) != null) Characters.instruction(who) else instruction
+        if (who != null && (Characters.isMix(who) || Characters.guideFor(who, this) != null)) return Characters.instruction(who, this)
+        if (Royal.wanted(instruction)) return Royal.AI
+        return instruction
+    }
+
+    /**
+     * The last step before typing (off the main thread): in Roblox, words its filter would hide are swapped;
+     * a message over the app's limit is shortened into ONE message that fits (by the AI when there's a key,
+     * otherwise by dropping filler words and cutting at the end of a sentence or word).
+     */
+    private fun finishForApp(app: String?, text: String, limit: Int?): String {
+        var t = text
+        if (app == Limit.ROBLOX && prefs.robloxSafe) {
+            val r = RobloxSafe.clean(t)
+            if (r.changed > 0) main.post { toast("Made it Roblox-safe: ${r.changed} word${if (r.changed == 1) "" else "s"} changed") }
+            t = r.text
+        }
+        if (limit != null && t.length > limit) {
+            if (Ai.hasKey(this)) runCatching { Ai.shorten(this, t, limit) }.getOrNull()
+                ?.takeIf { it.isNotBlank() && it.length <= limit }?.let { t = it }
+            if (t.length > limit) t = Limit.squeeze(t, limit)
+            if (app == Limit.ROBLOX && prefs.robloxSafe) t = RobloxSafe.clean(t).text
+        }
+        return t
     }
 
     /** "reply": reads the chat on screen and offers 3 replies to tap. */
