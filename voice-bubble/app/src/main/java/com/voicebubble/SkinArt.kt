@@ -112,8 +112,9 @@ Shapes (colours are "#RRGGBB" or "#AARRGGBB"; add "stroke": width to draw only t
         if (v is String && v.startsWith("#")) Color.parseColor(v) else fallback
     } catch (e: Exception) { fallback }
 
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
+    // Made on first use (not when this file loads), so the parts that only read text work anywhere.
+    private val fill by lazy { Paint(Paint.ANTI_ALIAS_FLAG) }
+    private val textPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true } }
 
     /** Draws the AI's shapes inside a circle at (cx, cy) with radius r. */
     fun drawShapes(cv: Canvas, spec: JSONObject, cx: Float, cy: Float, r: Float) {
