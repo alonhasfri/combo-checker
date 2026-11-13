@@ -286,3 +286,15 @@ class SkinCodeTest {
         assertNull(SkinArt.unpack("hello"))
     }
 }
+
+class BatchThreeTest {
+    @Test fun phoneTestScore() {
+        assertEquals(1f, PhoneTestActivity.accuracy(PhoneTestActivity.SENTENCE))
+        assertEquals(true, PhoneTestActivity.accuracy("my friend sam is meeting me") < 0.5f)
+    }
+
+    @Test fun resample() {
+        assertEquals(16000, AudioFile.resample(FloatArray(48000), 48000, 16000).size)
+        assertEquals(8, AudioFile.resample(FloatArray(8), 16000, 16000).size)
+    }
+}

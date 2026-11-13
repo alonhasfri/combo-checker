@@ -36,6 +36,11 @@ class ModelActivity : Screen() {
                     "you stop. Use Whisper for other languages or translating.").apply { setPaddingRelative(0, dp(6), 0, 0) })
         }, Ui.lp(this, 16))
 
+        page.addView(Ui.group(this, listOf(Ui.row(this, R.drawable.ui_target, "green", "Test my phone",
+            sub = "Read one sentence: see which model is fastest and most accurate here") {
+            startActivity(android.content.Intent(this, PhoneTestActivity::class.java))
+        })), Ui.lp(this, 16))
+
         page.addView(Ui.sectionTitle(this, "Whisper (all languages, translation)"))
         Models.shown().forEach { m ->
             val chosen = prefs.engine == "whisper" && prefs.modelId == m.id
