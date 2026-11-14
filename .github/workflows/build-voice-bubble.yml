@@ -27,6 +27,25 @@ jobs:
           curl -fsSL --retry 4 -o voice-bubble/app/libs/sherpa-onnx.aar \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar
           ls -l voice-bubble/app/libs
+      - name: Make the fast Turbo model (only once; kept in the voice-bubble-models release)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view voice-bubble-models --json assets -q '.assets[].name' 2>/dev/null | grep -qx ggml-distil-small.en-q8_0.bin; then
+            echo "Already made."; exit 0
+          fi
+          git clone -q --depth 1 -b v1.7.6 https://github.com/ggml-org/whisper.cpp /tmp/wcpp
+          cmake -S /tmp/wcpp -B /tmp/wcpp/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF > /dev/null
+          cmake --build /tmp/wcpp/build --target quantize -j 4 > /dev/null || cmake --build /tmp/wcpp/build --target whisper-quantize -j 4 > /dev/null
+          Q=$(ls /tmp/wcpp/build/bin/ | grep quantize | head -1)
+          curl -fsSL --retry 4 -o /tmp/distil.bin https://huggingface.co/distil-whisper/distil-small.en/resolve/main/ggml-distil-small.en.bin
+          "/tmp/wcpp/build/bin/$Q" /tmp/distil.bin /tmp/ggml-distil-small.en-q8_0.bin q8_0
+          ls -l /tmp/ggml-distil-small.en-q8_0.bin
+          gh release view voice-bubble-models >/dev/null 2>&1 || gh release create voice-bubble-models \
+            --title "Voice Bubble speech models" --notes "Speech models made for Voice Bubble; the app downloads them." \
+            --prerelease --latest=false
+          gh release upload voice-bubble-models /tmp/ggml-distil-small.en-q8_0.bin --clobber
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7

@@ -77,6 +77,9 @@ class BubbleService : Service() {
 
     // Small extra windows around the bubble.
     private var capsChip: TextView? = null
+    /** "✕ Normal" under the bubble while a character or translation is on: back to your own words, now. */
+    private var normalChip: TextView? = null
+    private var normalLp: WindowManager.LayoutParams? = null
     private var capsLp: WindowManager.LayoutParams? = null
     private var closeChip: TextView? = null
     private var closeLp: WindowManager.LayoutParams? = null
@@ -220,13 +223,14 @@ class BubbleService : Service() {
         view = v
         addCapsChip()
         addCloseChip()
+        addNormalChip()
         addUndoChip()
         refreshLook()
     }
 
     private fun removeExtras() {
-        listOf<View?>(capsChip, closeChip, undoChip, replyPanel).forEach { it?.let { x -> runCatching { wm.removeView(x) } } }
-        capsChip = null; closeChip = null; undoChip = null; replyPanel = null
+        listOf<View?>(capsChip, closeChip, undoChip, replyPanel, normalChip).forEach { it?.let { x -> runCatching { wm.removeView(x) } } }
+        capsChip = null; closeChip = null; undoChip = null; replyPanel = null; normalChip = null
     }
 
     private fun chip(label: String, sizeDp: Int, desc: String, onClick: () -> Unit): TextView = TextView(this).apply {
@@ -263,6 +267,42 @@ class BubbleService : Service() {
             setColor(if (on) Color.WHITE else Color.argb(220, 32, 38, 58))
             setStroke(dpx(2), Color.rgb(58, 91, 217))
         }
+    }
+
+    private fun addNormalChip() {
+        val c = chip("✕ Normal", 32, "Back to your normal voice") { backToNormal() }.apply {
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            setPadding(dpx(12), 0, dpx(12), 0)
+            background = GradientDrawable().apply { cornerRadius = dpx(16).toFloat(); setColor(Color.rgb(156, 92, 255)); setStroke(dpx(2), Color.WHITE) }
+        }
+        val p = overlayParams(WindowManager.LayoutParams.WRAP_CONTENT, dpx(32))
+        normalChip = c; normalLp = p
+        runCatching { wm.addView(c, p) }.onFailure { normalChip = null; normalLp = null }
+    }
+
+    /**
+     * The "✕ Normal" button: character and translation off. If it's still working on the AI step,
+     * your own words are typed right away instead of waiting for the AI.
+     */
+    private fun backToNormal() {
+        prefs.persona = null
+        prefs.translateTo = null
+        refreshLook()
+        buzz(20)
+        val s = session
+        s?.plainOnly = true
+        val plain = s?.plain
+        if (s != null && working && plain != null) {
+            endSession()          // the AI's answer, when it comes, is ignored
+            working = false
+            setState(BubbleView.State.IDLE)
+            val (t, _) = fitToLimit(if (s.app == Limit.ROBLOX && prefs.robloxSafe) RobloxSafe.clean(plain).text else plain, s.limit)
+            deliverFinal(s, t)
+            Stats.record(this, t, 0f, s.app)
+            toast("Normal voice ✓")
+        } else toast("Back to your normal voice")
+        positionChips()
     }
 
     /** The X in the bubble's corner (after holding it): turns the bubble off. */
@@ -318,6 +358,17 @@ class BubbleService : Service() {
             if (show) {
                 p.x = if (onRight) lp.x - p.width - gap else lp.x + size + gap
                 p.y = lp.y + (size - p.height) / 2
+                runCatching { wm.updateViewLayout(c, p) }
+            }
+        }
+        normalChip?.let { c ->
+            val p = normalLp ?: return@let
+            val show = visible && (recorder.isRecording || working) && (prefs.persona != null || prefs.translateTo != null)
+            c.visibility = if (show) View.VISIBLE else View.GONE
+            if (show) {
+                val w = if (c.width > 0) c.width else dpx(90)
+                p.x = (lp.x + size / 2 - w / 2).coerceIn(0, maxOf(0, dm.widthPixels - w))
+                p.y = if (lp.y + size + dpx(40) < dm.heightPixels) lp.y + size + dpx(6) else lp.y - dpx(38)
                 runCatching { wm.updateViewLayout(c, p) }
             }
         }
@@ -532,6 +583,10 @@ class BubbleService : Service() {
         @Volatile var preOut: String? = null
         @Volatile var preBusy = false
         @Volatile var preWanted: String? = null
+        /** "✕ Normal" was tapped: no character or translation for this one. */
+        @Volatile var plainOnly = false
+        /** Your words before the AI step, ready to type if you tap "✕ Normal" while the AI works. */
+        @Volatile var plain: String? = null
         var preWords = 0                    // words in the last text sent off (only send again once it grew)
     }
 
@@ -630,9 +685,10 @@ class BubbleService : Service() {
                 if (!s.whisperFinal) { main.postDelayed(this, 150); return }
             }
             val total = recorder.sampleCount
-            if (total - s.cutAt > Recorder.RATE * 5 / 2) {
+            // Cut at pauses often, so when you stop only a little is left to turn into text.
+            if (total - s.cutAt > Recorder.RATE * 2) {
                 val seg = recorder.copy(s.cutAt, total)
-                var cut = Audio.findCut(seg, minSpeechSec = 2.0, minPauseSec = 0.3)
+                var cut = Audio.findCut(seg, minSpeechSec = 1.4, minPauseSec = 0.25)
                 if (cut < 0 && seg.size > Recorder.RATE * 26) cut = quietestCut(seg)
                 if (cut > 0) {
                     s.cutAt += cut
@@ -748,12 +804,13 @@ class BubbleService : Service() {
             var text = said?.let { process(it, s.style, s.cat) }
             var problem: String? = null
             // "Talk like …" mode: every dictation rewritten in that voice.
-            val persona = prefs.persona
+            val persona = if (s.plainOnly) null else prefs.persona
             // AI fixes misheard words (not needed when the AI rewrites or translates it anyway).
             if (text != null && prefs.aiFix && persona == null && s.aiTarget == null && Ai.hasKey(this) &&
                 text.split(" ").size >= 3) {
                 text = runCatching { Ai.fixMistakes(this, text!!, Words.prompt(this).trimEnd('.')) }.getOrDefault(text)
             }
+            s.plain = text
             if (text != null && Royal.wanted(persona) && !Characters.isMix(persona!!) && (prefs.instantRoyal || !Ai.hasKey(this))) {
                 text = Royal.apply(text)   // instant, no AI
             } else if (text != null && Instant.has(persona) && !Characters.isMix(persona!!) && (prefs.instantChars || !Ai.hasKey(this))) {
@@ -761,7 +818,7 @@ class BubbleService : Service() {
             } else if (text != null && persona != null && Ai.hasKey(this)) {
                 text = try { Ai.rewrite(this, text, Royal.instruction(persona, this), s.limit) } catch (e: Ai.Failure) { problem = e.message; text }
             }
-            if (text != null && s.aiTarget != null) {
+            if (text != null && s.aiTarget != null && !s.plainOnly) {
                 text = try { finishTranslation(s, text, usePre = persona == null) } catch (e: Ai.Failure) { problem = e.message; text }
             }
             if (caps) text = text?.uppercase()

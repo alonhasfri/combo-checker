@@ -19,6 +19,8 @@ Java_com_voicebubble_Whisper_nativeLoad(JNIEnv *env, jobject, jstring jpath) {
     const char *path = env->GetStringUTFChars(jpath, nullptr);
     whisper_context_params cp = whisper_context_default_params();
     cp.use_gpu = false;
+    // Flash attention: the same result with less memory traffic, noticeably faster on phones.
+    cp.flash_attn = true;
     whisper_context *ctx = whisper_init_from_file_with_params(path, cp);
     env->ReleaseStringUTFChars(jpath, path);
     return reinterpret_cast<jlong>(ctx);
