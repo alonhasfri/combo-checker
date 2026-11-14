@@ -23,7 +23,12 @@ object Models {
         Model("small.en-fast", "Fastest accurate · English (for your phone)",
             "Whisper small, English only · 264 MB · uses your phone's fast maths instructions",
             "ggml-small.en-q8_0.bin", 264_477_561L, englishOnly = true, fastOnly = true),
-        Model("turbo.en", "Turbo · English",
+        // The same Turbo model, compressed (q8) by Voice Bubble's build: smaller and quicker on phones.
+        Model("turbo.en-fast", "Turbo fast · English",
+            "distil-small.en, compressed · 184 MB · the quickest accurate one, about twice as fast as Turbo",
+            "ggml-distil-small.en-q8_0.bin", 183_833_897L, englishOnly = true,
+            source = "https://github.com/alonhasfri/combo-checker/releases/download/voice-bubble-models/ggml-distil-small.en-q8_0.bin"),
+        Model("turbo.en", "Turbo · English (original)",
             "distil-small.en · 336 MB · writes 3-5× faster on long messages, nearly as accurate",
             "ggml-distil-small.en.bin", 336_191_657L, englishOnly = true,
             source = "https://huggingface.co/distil-whisper/distil-small.en/resolve/main/ggml-distil-small.en.bin"),
