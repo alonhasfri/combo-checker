@@ -1,0 +1,106 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.voicebubble"
+    compileSdk = 34
+    ndkVersion = "26.3.11579264"
+
+    defaultConfig {
+        // Its own app id, so it installs next to Comboed instead of replacing it.
+        applicationId = "com.voicebubble"
+        minSdk = 26
+        targetSdk = 34
+        // Climbs every CI build so a newer APK installs over an older one as an update.
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "0.1"
+
+        // Every phone from the last several years is 64-bit ARM. One ABI keeps the APK small.
+        ndk { abiFilters += "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=c++_static")
+                // A local whisper.cpp checkout can be used instead of downloading it at build time.
+                System.getenv("WHISPER_SRC")?.takeIf { it.isNotBlank() }?.let { arguments += "-DWHISPER_SRC=$it" }
+            }
+        }
+    }
+
+    buildFeatures { buildConfig = true }
+
+    // "basic" installs anywhere: Play Protect blocks browser-installed apps that contain an
+    // accessibility service, so this one copies the text and you paste it.
+    // "autotype" adds the accessibility service that types the text in for you.
+    flavorDimensions += "mode"
+    productFlavors {
+        create("basic") {
+            dimension = "mode"
+            buildConfigField("boolean", "AUTOTYPE", "false")
+        }
+        create("autotype") {
+            dimension = "mode"
+            buildConfigField("boolean", "AUTOTYPE", "true")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    // Same idea as Comboed: a fixed key (restored from a GitHub secret in CI) lets new builds
+    // install as updates. Without it the normal debug key is used.
+    val keystoreFile = file("voice.keystore")
+    val hasKeystore = keystoreFile.exists()
+    if (hasKeystore) {
+        val signPass = System.getenv("SIGNING_PASSWORD").takeUnless { it.isNullOrBlank() } ?: "combopass"
+        val signAlias = System.getenv("SIGNING_ALIAS").takeUnless { it.isNullOrBlank() } ?: "combo"
+        signingConfigs {
+            create("app") {
+                storeFile = keystoreFile
+                storePassword = signPass
+                keyAlias = signAlias
+                keyPassword = signPass
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (hasKeystore) signingConfig = signingConfigs.getByName("app")
+            // The speech engine is far too slow without compiler optimisations.
+            externalNativeBuild { cmake { arguments += "-DCMAKE_BUILD_TYPE=Release" } }
+        }
+        release {
+            isMinifyEnabled = false
+            if (hasKeystore) signingConfig = signingConfigs.getByName("app")
+        }
+    }
+    packaging {
+        resources.excludes += listOf("META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*",
+            "META-INF/INDEX.LIST", "META-INF/versions/9/module-info.class")
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // On-device text recognition, for importing words from a screenshot. Free, works offline.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Optional AI features (rewrite, translate, reply) with your own Claude key.
+    implementation("com.anthropic:anthropic-java:3.6.0")
+    // The Live engine (sherpa-onnx streaming speech recognition, Apache-2.0). The CI build downloads
+    // the release AAR into app/libs/ (too big to keep in git).
+    implementation(files("libs/sherpa-onnx.aar"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}

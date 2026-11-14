@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">Types the words you speak into the text box you have selected, when you tap the Voice Bubble microphone. It does not read, store or send anything else.</string>
+</resources>
