@@ -18,7 +18,7 @@ object Updates {
 
     /** Blocking network call. Null when offline or nothing found. */
     fun fetchNewest(): Release? = try {
-        val conn = URL("https://api.github.com/repos/alonhasfri/combo-checker/releases?per_page=50").openConnection() as HttpURLConnection
+        val conn = URL("https://api.github.com/repos/alonhasfri/voice-bubble/releases?per_page=50").openConnection() as HttpURLConnection
         conn.connectTimeout = 8000
         conn.readTimeout = 8000
         conn.setRequestProperty("Accept", "application/vnd.github+json")
