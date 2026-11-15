@@ -89,8 +89,8 @@ class MainActivity : Screen() {
         page.addView(Ui.sectionTitle(this, "Recent"))
         page.addView(Ui.group(this, listOf(Ui.row(this, R.drawable.ui_book, "teal", "Search all history",
             sub = "Find anything you dictated") { startActivity(Intent(this, HistoryActivity::class.java)) },
-            Ui.row(this, R.drawable.ui_mic, "purple", "Voice note to text",
-                sub = "Share a voice message here, or pick an audio file") { startActivity(Intent(this, VoiceNoteActivity::class.java)) })))
+            Ui.row(this, R.drawable.ui_mic, "purple", "Recording to text",
+                sub = "Voice messages or long recordings (an hour is fine), or translate them") { startActivity(Intent(this, VoiceNoteActivity::class.java)) })))
         page.addView(recent(), Ui.lp(this, 12))
 
         Ui.tabScreen(this, page, "home")

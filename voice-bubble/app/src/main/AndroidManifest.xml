@@ -97,7 +97,7 @@
         <activity android:name=".ModelActivity" android:exported="false" />
         <activity android:name=".HistoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <!-- Share a voice note to Voice Bubble to have it written out. -->
-        <activity android:name=".VoiceNoteActivity" android:exported="true" android:label="Voice note to text">
+        <activity android:name=".VoiceNoteActivity" android:exported="true" android:label="Recording to text">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
