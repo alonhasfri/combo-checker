@@ -1,0 +1,36 @@
+name: Export signing key (one time, locked)
+# Copies the signing key to Voice Bubble's new repo. The key is locked with a public key, so only the
+# matching private key (not in this repo) can open what's printed here. Removed again right after.
+on:
+  push:
+    branches: [claude/speech-to-text-app-j4ea1q]
+    paths: ['.github/workflows/export-signing-key.yml']
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lock and print
+        env:
+          KEY: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          cat > pub.pem <<'PEM'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA0ohgLjRDiITlOUcoyV9T
+          lZhasO/shwRx3tzWywUrVvZUqvG3t+6MZ6dU/UdHJju29/vqi9omBUHBKLwnaNsm
+          O5CeKxY5Rj07PIvgW6e9KfKSpyRqdX5TNptSrC9flfDb49W0Ny5cXuMsrLEz/kSC
+          qwmcUv9aqOKJUx+hIGc8XBTia01nhfPM4Bh8lcAm9pQ/aXzz8iIXnckhGTNV5q/4
+          uN6/Adx7ElJp28Sisn39wUibHDgeSgkt418Sfx+QQ3EnDPfDBkNcoch0JngO90v8
+          AOlJWRpn8ZjNz4J8aglfNt9DTN0IKo1zuGeFBaBCFkdIvGQoLOdEsz0al+fuV5IO
+          LAYgwhMpeWb4W2dpV+bvBL+D0b9+rIsuJ2OaDkDfIVE7M+QJr/H+NJHno5uUwp4E
+          PS3MsJlr1Agp/Wtfz3JyFWzQvADI4+u9cjKCaCxyqyoZ+lKeBXICJJeszmUzrH3V
+          XPNF5jdh1/XF+yE843909cwD25cPzwT6+Zu1pq8H7JebAgMBAAE=
+          -----END PUBLIC KEY-----
+          PEM
+          sed -i 's/^ *//' pub.pem
+          if [ -z "$KEY" ]; then echo "NO SECRET"; exit 1; fi
+          openssl rand -hex 32 > k.txt
+          printf '%s' "$KEY" | openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:k.txt -base64 -A > data.b64
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -pkeyopt rsa_padding_mode:oaep -in k.txt | base64 -w0 > k.b64
+          echo "KEYBLOB:$(cat k.b64)"
+          echo "DATABLOB:$(cat data.b64)"
+          rm -f k.txt
