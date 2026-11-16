@@ -36,16 +36,19 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: build-${{ github.run_number }}
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleSafeRelease assembleFullRelease --no-daemon
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp combo-android/app/build/outputs/apk/debug/app-debug.apk combo-checker.apk
+          # Two release builds (not debuggable), same key so either installs over the other:
+          #   combo-checker.apk = SAFE edition (public link), comboed-full.apk = FULL edition (with pranks).
+          cp combo-android/app/build/outputs/apk/safe/release/app-safe-release.apk combo-checker.apk
+          cp combo-android/app/build/outputs/apk/full/release/app-full-release.apk comboed-full.apk
           # Only builds from main become the "latest" release (what the permanent link and the
           # in-app update check point to). Builds from other branches are test pre-releases.
           if [ "${{ github.ref_name }}" = "main" ]; then
-            gh release create "build-${{ github.run_number }}" combo-checker.apk --title "Comboed build ${{ github.run_number }}" --notes "Install this APK on your phone" --latest
+            gh release create "build-${{ github.run_number }}" combo-checker.apk comboed-full.apk --title "Comboed build ${{ github.run_number }}" --notes "Install this APK on your phone" --latest
           else
-            gh release create "build-${{ github.run_number }}" combo-checker.apk --title "Comboed test build ${{ github.run_number }} (${{ github.ref_name }})" --notes "Test build - not the public version yet" --prerelease --latest=false
+            gh release create "build-${{ github.run_number }}" combo-checker.apk comboed-full.apk --title "Comboed test build ${{ github.run_number }} (${{ github.ref_name }})" --notes "Test build - not the public version yet" --prerelease --latest=false
           fi
