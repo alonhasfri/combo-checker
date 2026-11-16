@@ -36,12 +36,13 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: build-${{ github.run_number }}
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleRelease --no-daemon
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp combo-android/app/build/outputs/apk/debug/app-debug.apk combo-checker.apk
+          # Release build (not debuggable), signed with the same key so it still updates in place.
+          cp combo-android/app/build/outputs/apk/release/app-release.apk combo-checker.apk
           # Only builds from main become the "latest" release (what the permanent link and the
           # in-app update check point to). Builds from other branches are test pre-releases.
           if [ "${{ github.ref_name }}" = "main" ]; then
